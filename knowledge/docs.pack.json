@@ -1,0 +1,26 @@
+{
+  "domain": "docs",
+  "version": "2.0",
+  "rules": [
+    {
+      "pattern": "documento",
+      "action": "define_audience",
+      "template": "Definir publico, objetivo, escopo e estrutura antes de redigir."
+    },
+    {
+      "pattern": "relatorio",
+      "action": "evidence_first",
+      "template": "Separar achados, evidencias, decisoes e proximas acoes em secoes auditaveis."
+    },
+    {
+      "pattern": "manual",
+      "action": "operational_steps",
+      "template": "Transformar instrucoes em passos verificaveis, com pre-condicoes e resultado esperado."
+    },
+    {
+      "pattern": "conteudo",
+      "action": "remove_noise",
+      "template": "Remover lero-lero, promessas vagas e texto que nao contribui para o contrato."
+    }
+  ]
+}

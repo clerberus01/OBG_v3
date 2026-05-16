@@ -1,0 +1,14 @@
+.gocache/
+bin/
+dist/
+data/
+logs/
+tmp/
+
+*.exe
+*.test
+*.db
+*.db-shm
+*.db-wal
+
+projects/

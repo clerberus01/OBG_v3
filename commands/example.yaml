@@ -1,0 +1,37 @@
+north_star: "Executar um projeto OBG a partir de contrato operacional em YAML"
+constraints:
+  - "SQLite modernc e a fonte de verdade autorizada pelo Arquiteto."
+  - "Tarefas aprovadas devem permanecer read-only."
+  - "Cada tarefa deve produzir payload auditavel."
+deliverables:
+  - "Contrato selado no SQLite."
+  - "Checklist de tarefas com dependencias resolvidas."
+  - "Artefatos e logs tecnicos rastreaveis."
+tasks:
+  - id: contrato
+    title: "Registrar contrato importado do YAML"
+    role: "Gerente"
+    payload:
+      command: "write_contract"
+      validation: "contract_hash"
+  - id: planejamento
+    title: "Planejar modulos independentes do projeto"
+    role: "Arquiteto"
+    depends_on: [contrato]
+    payload:
+      command: "plan_modules"
+      output: "02-task-plan.json"
+  - id: execucao
+    title: "Executar entrega inicial com handoff JSON"
+    role: "Operario Polimorfico"
+    depends_on: [planejamento]
+    payload:
+      command: "write_delivery"
+      output: "03-initial-delivery.md"
+  - id: auditoria
+    title: "Auditar resultado e selar artefatos aprovados"
+    role: "Auditor Tecnico"
+    depends_on: [execucao]
+    payload:
+      command: "audit_contract"
+      output: "04-audit.json"

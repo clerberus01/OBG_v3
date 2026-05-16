@@ -1,0 +1,26 @@
+{
+  "domain": "audit",
+  "version": "2.0",
+  "rules": [
+    {
+      "pattern": "auditar",
+      "action": "technical_gate",
+      "template": "Aplicar crivo tecnico com evidencia, hash, contrato e ausencia de ruido narrativo."
+    },
+    {
+      "pattern": "falha",
+      "action": "block_on_repeated_failure",
+      "template": "Bloquear tarefa apos falhas repetidas e registrar motivo recuperavel."
+    },
+    {
+      "pattern": "read-only",
+      "action": "readonly_guard",
+      "template": "Nao reescrever artefato aprovado; criar nova saida versionada quando necessario."
+    },
+    {
+      "pattern": "validacao",
+      "action": "validation_record",
+      "template": "Registrar validacoes executadas, resultado, stdout resumido e codigo de saida."
+    }
+  ]
+}

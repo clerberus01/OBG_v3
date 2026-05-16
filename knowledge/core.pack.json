@@ -1,0 +1,26 @@
+{
+  "domain": "core",
+  "version": "2.0",
+  "rules": [
+    {
+      "pattern": "contrato",
+      "action": "preserve_contract",
+      "template": "Preservar contrato, hash e criterios de aceite antes de executar {{.Description}}."
+    },
+    {
+      "pattern": "sqlite",
+      "action": "solid_state",
+      "template": "Persistir fatos no SQLite; se nao esta no DB, nao aconteceu."
+    },
+    {
+      "pattern": "artefato",
+      "action": "seal_artifact",
+      "template": "Gerar artefato verificavel, registrar SHA-256 e selar como read-only."
+    },
+    {
+      "pattern": "handoff",
+      "action": "handoff_trace",
+      "template": "Registrar passagem entre tarefas com origem, destino, payload e hash."
+    }
+  ]
+}

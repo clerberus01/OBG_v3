@@ -1,0 +1,1353 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Omni-Bot Go</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #101214;
+      --panel: #171a1d;
+      --panel-2: #20252a;
+      --line: #343b43;
+      --text: #f0f3f5;
+      --muted: #aab3bb;
+      --accent: #43b883;
+      --warn: #e8b455;
+      --danger: #e35f5f;
+      --info: #67a7e8;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+      font: 14px/1.5 system-ui, -apple-system, Segoe UI, sans-serif;
+    }
+    header {
+      height: 58px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 18px;
+      border-bottom: 1px solid var(--line);
+      background: #121518;
+    }
+    h1, h2, h3 { margin: 0; letter-spacing: 0; overflow-wrap: anywhere; }
+    h1 { font-size: 18px; font-weight: 700; }
+    h2 { font-size: 14px; color: var(--muted); font-weight: 600; }
+    .brand { display: grid; gap: 1px; }
+    .brand small { color: var(--muted); font-size: 11px; }
+    button, textarea, input {
+      font: inherit;
+      border-radius: 6px;
+      border: 1px solid var(--line);
+      color: var(--text);
+      background: var(--panel-2);
+    }
+    button {
+      height: 36px;
+      padding: 0 12px;
+      cursor: pointer;
+      font-weight: 650;
+    }
+    button:hover { border-color: var(--muted); }
+    button.primary { background: var(--accent); color: #07130d; border-color: var(--accent); }
+    button.danger { background: var(--danger); border-color: var(--danger); color: #190505; }
+    button.ghost { background: transparent; }
+    main {
+      display: grid;
+      grid-template-columns: minmax(300px, 390px) minmax(420px, 1fr) minmax(320px, 440px);
+      min-height: calc(100vh - 58px);
+    }
+    section {
+      min-width: 0;
+      padding: 16px;
+      border-right: 1px solid var(--line);
+    }
+    section:last-child { border-right: 0; }
+    .section-head {
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      min-width: 0;
+      margin-bottom: 12px;
+    }
+    textarea {
+      width: 100%;
+      min-height: 160px;
+      resize: vertical;
+      padding: 12px;
+      background: #0f1113;
+    }
+    textarea.compact { min-height: 116px; }
+    .actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+    .toolbar { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+    .toolbar button { height: 30px; padding: 0 9px; font-size: 12px; }
+    .inline-actions { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+    .inline-actions button { height: 30px; padding: 0 9px; font-size: 12px; }
+    .question-list { display: grid; gap: 10px; margin-top: 14px; }
+    .question-list label { display: grid; gap: 6px; color: var(--muted); font-size: 12px; }
+    .question-list input { width: 100%; height: 36px; padding: 0 10px; background: #0f1113; }
+    .question-index {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: #293039;
+      color: var(--text);
+      font-size: 11px;
+      font-weight: 700;
+      margin-right: 6px;
+    }
+    .contract-draft {
+      display: grid;
+      gap: 8px;
+      margin-top: 10px;
+      padding: 10px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #101417;
+    }
+    .contract-draft textarea { min-height: 86px; }
+    .contract-draft label { display: grid; gap: 5px; color: var(--muted); font-size: 12px; }
+    .field-list { display: grid; gap: 8px; }
+    .field-list label { display: grid; gap: 5px; color: var(--muted); font-size: 12px; }
+    .field-list input { width: 100%; height: 34px; padding: 0 10px; background: #0f1113; }
+    .field-list textarea { min-height: 104px; }
+    .split-actions { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: end; }
+    .split-actions label { display: grid; gap: 5px; color: var(--muted); font-size: 12px; }
+    .split-actions input { width: 100%; height: 34px; padding: 0 10px; background: #0f1113; }
+    .jit-box {
+      margin-top: 8px;
+      padding: 8px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #101417;
+    }
+    .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: var(--warn);
+    }
+    .dot.ok { background: var(--accent); }
+    .dot.bad { background: var(--danger); }
+    .list { display: grid; gap: 8px; }
+    .history-list { display: grid; gap: 8px; }
+    .audit-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+    .audit-row {
+      display: grid;
+      gap: 6px;
+      padding: 8px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #101417;
+    }
+    .log-row {
+      border-left: 3px solid var(--line);
+    }
+    .log-row.ERROR { border-left-color: var(--danger); }
+    .log-row.WARN { border-left-color: var(--warn); }
+    .log-row.INFO { border-left-color: var(--info); }
+    .plugin-history {
+      display: grid;
+      grid-template-columns: minmax(120px, 180px) minmax(0, 1fr);
+      gap: 10px;
+      align-items: start;
+    }
+    .plugin-result {
+      display: grid;
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+    .metric {
+      min-height: 62px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 9px;
+    }
+    .metric strong { display: block; font-size: 20px; line-height: 1.1; }
+    .metric span { color: var(--muted); font-size: 11px; }
+    .card {
+      min-width: 0;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+    }
+    .card h3 { font-size: 14px; margin-bottom: 6px; }
+    .card-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 10px;
+      min-width: 0;
+      margin-bottom: 6px;
+    }
+    .card-head > * { min-width: 0; }
+    .card-head h3 { margin: 0; }
+    .meta {
+      color: var(--muted);
+      font-size: 12px;
+      overflow-wrap: anywhere;
+    }
+    .task-line {
+      display: grid;
+      grid-template-columns: 44px minmax(0, 1fr);
+      gap: 8px;
+      align-items: start;
+    }
+    .task-id {
+      display: grid;
+      place-items: center;
+      min-height: 38px;
+      border-radius: 6px;
+      background: #0f1113;
+      color: var(--muted);
+      font-weight: 700;
+    }
+    .contract-board {
+      display: grid;
+      gap: 10px;
+    }
+    .contract-summary {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 6px;
+    }
+    .dependency-line {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-top: 6px;
+    }
+    .dependency-arrow {
+      color: var(--muted);
+      font-weight: 700;
+    }
+    .watchdog-line {
+      display: grid;
+      gap: 5px;
+      margin-top: 8px;
+      padding: 8px;
+      border-radius: 6px;
+      border: 1px solid rgba(232, 180, 85, .35);
+      background: rgba(232, 180, 85, .08);
+    }
+    .watchdog-line.blocked {
+      border-color: rgba(227, 95, 95, .45);
+      background: rgba(227, 95, 95, .09);
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+    .agent {
+      min-height: 98px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 10px;
+    }
+    .agent strong { display: block; font-size: 13px; margin-bottom: 8px; }
+    .pill {
+      display: inline-flex;
+      max-width: 100%;
+      border-radius: 999px;
+      padding: 3px 8px;
+      font-size: 12px;
+      background: #293039;
+      color: var(--muted);
+      overflow-wrap: anywhere;
+    }
+    .pill.done { background: rgba(67, 184, 131, .18); color: #8fe1b8; }
+    .pill.run { background: rgba(103, 167, 232, .18); color: #a8ccf4; }
+    .pill.block { background: rgba(227, 95, 95, .18); color: #f09b9b; }
+    .pill.warn { background: rgba(232, 180, 85, .18); color: #f0d393; }
+    pre {
+      margin: 0;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      color: #d9e0e5;
+      font: 12px/1.45 ui-monospace, SFMono-Regular, Consolas, monospace;
+    }
+    .tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+    .tabs .tab { flex: 1 1 auto; min-width: max-content; }
+    .tab.active { border-color: var(--accent); color: var(--accent); }
+    .mode.active { border-color: var(--info); color: var(--info); }
+    .filter.active { border-color: var(--accent); color: var(--accent); }
+    .empty {
+      border: 1px dashed var(--line);
+      border-radius: 8px;
+      padding: 14px;
+      color: var(--muted);
+      background: #0f1113;
+    }
+    .hidden { display: none; }
+    @media (max-width: 1050px) {
+      main { grid-template-columns: 1fr; }
+      section { border-right: 0; border-bottom: 1px solid var(--line); }
+      .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .audit-grid { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 560px) {
+      header {
+        height: auto;
+        min-height: 58px;
+        align-items: flex-start;
+        gap: 8px;
+        padding: 10px 12px;
+        flex-direction: column;
+      }
+      section { padding: 12px; }
+      .toolbar button, .inline-actions button, .actions button { flex: 1 1 140px; }
+      .metrics, .grid { grid-template-columns: 1fr; }
+      .task-line { grid-template-columns: 38px minmax(0, 1fr); }
+      .plugin-history { grid-template-columns: 1fr; }
+      .split-actions { grid-template-columns: 1fr; }
+      .card-head {
+        align-items: stretch;
+        flex-direction: column;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <h1>Omni-Bot Go</h1>
+      <small>Solid State Manager</small>
+    </div>
+    <div class="status"><span id="conn" class="dot"></span><span id="state">Conectando</span></div>
+  </header>
+  <main>
+    <section>
+      <div class="section-head"><h2>Balcão</h2></div>
+      <div id="metrics" class="metrics"></div>
+      <div class="toolbar">
+        <button class="mode active" data-mode="interrogate">Contrato</button>
+        <button class="mode" data-mode="yaml">YAML</button>
+        <button class="mode" data-mode="factory">Fabrica</button>
+      </div>
+      <textarea id="input" placeholder="Descreva o projeto que o Gerente deve contratar, dividir e auditar."></textarea>
+      <textarea id="yamlInput" class="compact hidden" placeholder="Cole um YAML operacional com north_star, constraints, deliverables e tasks."></textarea>
+      <textarea id="factoryItems" class="compact hidden" placeholder="Um item por linha. Use {{item}}, {{index}}, {{total}} e {{batch}} no texto do contrato acima."></textarea>
+      <div class="actions">
+        <button class="primary" id="send">Interrogar</button>
+        <button class="ghost" id="legacy">Criar direto</button>
+        <button class="primary hidden" id="yamlSend">Importar YAML</button>
+        <button class="primary hidden" id="factorySend">Criar fabrica</button>
+        <button class="danger" id="panic">Panic</button>
+        <button class="ghost" id="resume">Retomar</button>
+      </div>
+      <div id="interrogations" class="list" style="margin-top:14px"></div>
+      <div id="contracts" class="list" style="margin-top:14px"></div>
+    </section>
+    <section>
+      <div class="section-head"><h2>Quadro de Obras</h2></div>
+      <div id="agents" class="grid"></div>
+      <div class="toolbar">
+        <button class="filter active" data-filter="all">Todas</button>
+        <button class="filter" data-filter="active">Ativas</button>
+        <button class="filter" data-filter="blocked">Bloqueadas</button>
+        <button class="filter" data-filter="sealed">Seladas</button>
+      </div>
+      <div id="watchdog"></div>
+      <div id="tasks" class="list"></div>
+    </section>
+    <section>
+      <div class="section-head"><h2>Mostruário & Auditoria</h2></div>
+      <div class="tabs">
+        <button class="tab active" data-tab="engine">Engine</button>
+        <button class="tab" data-tab="sealed">Selados</button>
+        <button class="tab" data-tab="handoffs">Handoffs</button>
+        <button class="tab" data-tab="plugins">Plugins</button>
+        <button class="tab" data-tab="knowledge_packs">Knowledge Packs</button>
+        <button class="tab" data-tab="audit_metrics">Métricas</button>
+        <button class="tab" data-tab="logs">Logs</button>
+      </div>
+      <div id="engine"></div>
+      <div id="sealed" class="hidden"></div>
+      <div id="handoffs" class="hidden"></div>
+      <div id="plugins" class="hidden"></div>
+      <div id="knowledge_packs" class="hidden"></div>
+      <div id="audit_metrics" class="hidden"></div>
+      <div id="logs" class="hidden"></div>
+    </section>
+  </main>
+  <script>
+    let snapshot = { engine: null, interrogations: [], contracts: [], tasks: [], artifacts: [], handoffs: [], plugins: [], plugin_calls: [], plugin_command_registry: [], plugin_permission_scopes: [], knowledge_packs: [], knowledge_candidates: [], factory_series: [], agents: [], logs: [], assertiveness: null, blocked: false };
+    let taskFilter = 'all';
+    let inputMode = 'interrogate';
+    let knowledgePackResults = [];
+    let knowledgePackNotice = '';
+    let latestWatchdog = null;
+    let interrogationDrafts = {};
+    const $ = (id) => document.getElementById(id);
+    const escapeHtml = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    const statusClass = (s) => s === 'Aprovado' ? 'done' : s === 'Em Execucao' ? 'run' : (s === 'Bloqueado' || s === 'Cancelado' || s === 'Reprovado') ? 'block' : '';
+    const parseJSON = (value) => {
+      try { return JSON.parse(value || '{}'); } catch (_) { return null; }
+    };
+
+    function render() {
+      $('state').textContent = snapshot.blocked ? 'Bloqueado' : 'Ativo';
+      $('conn').className = 'dot ' + (snapshot.blocked ? 'bad' : 'ok');
+      $('metrics').innerHTML = metricView();
+      $('interrogations').innerHTML = (snapshot.interrogations || []).map(s => `
+        <article class="card" data-interrogation="${s.id}">
+          <div class="card-head">
+            <h3>Balcão #${s.id}</h3>
+            <span class="pill ${s.status === 'Contrato Selado' ? 'done' : 'run'}">${escapeHtml(s.status)}</span>
+          </div>
+          <div class="meta">${escapeHtml(s.input)}</div>
+          ${s.status === 'Contrato Selado' ? `<div class="meta">contrato #${s.contract_id}</div>` : questionForm(s)}
+        </article>`).join('');
+      $('contracts').innerHTML = (snapshot.contracts || []).map(c => `
+        <article class="card">
+          <div class="card-head">
+            <h3>Contrato #${c.id}</h3>
+            <span class="pill done">selado</span>
+          </div>
+          <div>${escapeHtml(c.north_star)}</div>
+          <div class="meta">hash ${escapeHtml(c.hash)}</div>
+          <div class="inline-actions">
+            <button class="ghost" data-reaudit="${c.id}">Reauditar</button>
+          </div>
+        </article>`).join('') || '<div class="empty">Nenhum contrato selado.</div>';
+      $('agents').innerHTML = (snapshot.agents || []).map(a => `
+        <article class="agent">
+          <strong>Bot ${a.worker_id}</strong>
+          <span class="pill ${statusClass(a.status)}">${escapeHtml(a.status)}</span>
+          <div class="meta">${escapeHtml(a.role || 'dormindo')}</div>
+          <div class="meta">tarefa ${a.task_id || '-'}</div>
+        </article>`).join('');
+      const visibleTasks = filteredTasks();
+      $('watchdog').innerHTML = watchdogView(latestWatchdog, snapshot.tasks || []);
+      $('tasks').innerHTML = taskBoardView(visibleTasks, snapshot.contracts || [], snapshot.tasks || []);
+      const sealed = snapshot.tasks.filter(t => t.read_only);
+      $('engine').innerHTML = engineView(snapshot.engine);
+      $('sealed').innerHTML = artifactAuditView(snapshot.artifacts || [], sealed);
+      $('handoffs').innerHTML = handoffView(snapshot.handoffs || []);
+      $('plugins').innerHTML = pluginView(snapshot.plugins || [], snapshot.plugin_calls || [], snapshot.plugin_command_registry || [], snapshot.plugin_permission_scopes || []);
+      $('knowledge_packs').innerHTML = knowledgePackView(snapshot.knowledge_packs || [], snapshot.knowledge_candidates || []);
+      $('audit_metrics').innerHTML = auditMetricsView(snapshot);
+      $('logs').innerHTML = logsView(snapshot.logs || []);
+    }
+
+    function metricView() {
+      const tasks = snapshot.tasks || [];
+      const approved = tasks.filter(t => t.status === 'Aprovado').length;
+      const running = tasks.filter(t => t.status === 'Em Execucao').length;
+      const blocked = tasks.filter(t => ['Bloqueado', 'Reprovado', 'Cancelado'].includes(t.status)).length;
+      const assertiveness = snapshot.assertiveness || {};
+      return [
+        ['Contratos', (snapshot.contracts || []).length],
+        ['Lotes', (snapshot.factory_series || []).length],
+        ['Aprovadas', assertiveness.approved ?? approved],
+        ['Refeitas', assertiveness.redone || 0],
+        ['Bloqueadas', assertiveness.blocked ?? blocked],
+        ['Em execucao', running],
+        ['Tempo medio', formatSeconds(assertiveness.average_seconds || 0)],
+      ].map(([label, value]) => `<div class="metric"><strong>${value}</strong><span>${label}</span></div>`).join('') +
+        assertivenessView(assertiveness);
+    }
+
+    function assertivenessView(metrics) {
+      const role = (metrics.success_rate_by_role || []).slice(0, 4);
+      const domain = (metrics.success_rate_by_domain || []).slice(0, 4);
+      if (!role.length && !domain.length) return '';
+      return `
+        <article class="card" style="grid-column:1/-1">
+          <div class="card-head">
+            <h3>Assertividade</h3>
+            <span class="pill">por papel/dominio</span>
+          </div>
+          ${rateList('Papel', role)}
+          ${rateList('Dominio', domain)}
+        </article>`;
+    }
+
+    function rateList(label, items) {
+      if (!items.length) return '';
+      return `
+        <div class="meta">${label}</div>
+        <div class="inline-actions">
+          ${items.map(item => `<span class="pill">${escapeHtml(item.key)} ${Math.round((item.success_rate || 0) * 100)}% (${escapeHtml(item.approved)}/${escapeHtml(item.total)})</span>`).join('')}
+        </div>`;
+    }
+
+    function formatSeconds(value) {
+      if (!value) return '0s';
+      if (value < 60) return `${Math.round(value)}s`;
+      return `${Math.round(value / 60)}m`;
+    }
+
+    function filteredTasks() {
+      const tasks = snapshot.tasks || [];
+      switch (taskFilter) {
+        case 'active':
+          return tasks.filter(t => ['Aguardando', 'Em Execucao', 'Refazendo'].includes(t.status));
+        case 'blocked':
+          return tasks.filter(t => ['Bloqueado', 'Reprovado', 'Cancelado'].includes(t.status));
+        case 'sealed':
+          return tasks.filter(t => t.read_only);
+        default:
+          return tasks;
+      }
+    }
+
+    function taskPayloadSummary(task) {
+      const payload = task.payload || {};
+      const source = payload.source ? `<span class="pill">${escapeHtml(payload.source)}</span>` : '';
+      const command = payload.command ? `<span class="pill">${escapeHtml(payload.command)}</span>` : '';
+      const factory = payload.factory ? `<span class="pill">lote ${escapeHtml(payload.factory.batch_id)}</span><span class="pill">item ${escapeHtml(payload.factory.index)}/${escapeHtml(payload.factory.total)}</span>` : '';
+      const reason = payload.reason || payload.retry_reason || payload.cancel_reason || payload.panic_reason || '';
+      return `${source}${command}${factory}${reason ? `<div class="meta">${escapeHtml(reason)}</div>` : ''}`;
+    }
+
+    function taskBoardView(tasks, contracts, allTasks) {
+      if (!tasks.length) return '<div class="empty">Nenhuma tarefa neste filtro.</div>';
+      const contractMap = new Map((contracts || []).map(c => [Number(c.id), c]));
+      const groups = new Map();
+      tasks.forEach(task => {
+        const key = Number(task.contract_id || 0);
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push(task);
+      });
+      return Array.from(groups.entries()).map(([contractID, items]) => {
+        const contract = contractMap.get(contractID);
+        return `
+          <article class="card contract-board">
+            <div class="card-head">
+              <div>
+                <h3>Contrato #${escapeHtml(contractID || '-')}</h3>
+                <div class="meta">${escapeHtml(contract ? contract.north_star : 'contrato nao encontrado')}</div>
+              </div>
+              <span class="pill">${escapeHtml(items.length)} tarefa(s)</span>
+            </div>
+            ${contractProgress(items)}
+            ${items.map(task => taskCard(task, allTasks)).join('')}
+          </article>`;
+      }).join('');
+    }
+
+    function contractProgress(tasks) {
+      const total = tasks.length || 1;
+      const approved = tasks.filter(t => t.status === 'Aprovado').length;
+      const running = tasks.filter(t => t.status === 'Em Execucao').length;
+      const blocked = tasks.filter(t => ['Bloqueado', 'Reprovado', 'Cancelado'].includes(t.status)).length;
+      const pending = tasks.length - approved - running - blocked;
+      return `
+        <div class="contract-summary">
+          <span class="pill done">${approved}/${total} aprovadas</span>
+          <span class="pill run">${running} em execução</span>
+          <span class="pill warn">${pending} aguardando</span>
+          <span class="pill block">${blocked} bloqueadas</span>
+        </div>`;
+    }
+
+    function taskCard(task, allTasks) {
+      return `
+        <div class="jit-box">
+          <div class="task-line">
+            <div class="task-id">#${task.id}</div>
+            <div>
+              <div class="card-head">
+                <h3>${escapeHtml(task.title)}</h3>
+                <span class="pill ${statusClass(task.status)}">${escapeHtml(task.status)}</span>
+              </div>
+              <span class="pill">${escapeHtml(task.role)}</span>
+              ${task.read_only ? '<span class="pill done">read-only</span>' : ''}
+              ${dependencyView(task, allTasks)}
+              ${watchdogTaskView(task)}
+              ${taskPayloadSummary(task)}
+              ${taskJITSummary(task)}
+              <div class="inline-actions">
+                ${task.status === 'Em Execucao' && !task.read_only ? `<button class="danger" data-task-action="cancel" data-task="${task.id}">Parar</button>` : ''}
+                ${canRetry(task) ? `<button class="ghost" data-task-action="retry" data-task="${task.id}">Refazer</button>` : ''}
+              </div>
+            </div>
+          </div>
+        </div>`;
+    }
+
+    function dependencyView(task, allTasks) {
+      const deps = task.dependencies || [];
+      if (!deps.length) return '<div class="dependency-line"><span class="pill done">sem dependências</span></div>';
+      const byID = new Map((allTasks || []).map(t => [Number(t.id), t]));
+      return `
+        <div class="dependency-line">
+          ${deps.map(id => {
+            const dep = byID.get(Number(id));
+            return `<span class="pill ${statusClass(dep ? dep.status : '')}">#${escapeHtml(id)} ${escapeHtml(dep ? dep.status : 'desconhecida')}</span>`;
+          }).join('<span class="dependency-arrow">→</span>')}
+          <span class="dependency-arrow">→</span>
+          <span class="pill ${statusClass(task.status)}">#${escapeHtml(task.id)}</span>
+        </div>`;
+    }
+
+    function watchdogTaskView(task) {
+      const watchdog = (task.payload || {}).watchdog || {};
+      const attempts = Number(task.attempts || watchdog.attempt || 0);
+      if (!attempts && !['Bloqueado', 'Reprovado', 'Cancelado'].includes(task.status)) return '';
+      const limit = watchdog.limit || 3;
+      const reason = watchdog.reason || task.payload?.reason || task.payload?.retry_reason || task.payload?.cancel_reason || task.payload?.panic_reason || '';
+      const blocked = task.status === 'Bloqueado' || watchdog.blocked;
+      return `
+        <div class="watchdog-line ${blocked ? 'blocked' : ''}">
+          <div>
+            <span class="pill ${blocked ? 'block' : 'warn'}">watchdog ${escapeHtml(attempts)}/${escapeHtml(limit)}</span>
+            <span class="pill ${statusClass(task.status)}">${escapeHtml(task.status)}</span>
+          </div>
+          ${reason ? `<div class="meta">${escapeHtml(reason)}</div>` : ''}
+        </div>`;
+    }
+
+    function watchdogView(event, tasks) {
+      const watched = (tasks || []).filter(t => Number(t.attempts || 0) > 0 || ['Bloqueado', 'Reprovado', 'Cancelado'].includes(t.status));
+      const blocked = watched.filter(t => t.status === 'Bloqueado').length;
+      const last = event ? `
+        <div class="watchdog-line ${event.blocked ? 'blocked' : ''}">
+          <div>
+            <span class="pill ${event.blocked ? 'block' : 'warn'}">último evento task #${escapeHtml(event.task_id)}</span>
+            <span class="pill">${escapeHtml(event.attempt)}/${escapeHtml(event.limit)}</span>
+            <span class="pill ${statusClass(event.status)}">${escapeHtml(event.status)}</span>
+          </div>
+          <div class="meta">${escapeHtml(event.title)}</div>
+          <div>${escapeHtml(event.reason)}</div>
+        </div>` : '';
+      return `
+        <article class="card" style="margin-bottom:10px">
+          <div class="card-head">
+            <h3>Watchdog</h3>
+            <span class="pill ${blocked ? 'block' : 'done'}">${blocked} bloqueada(s)</span>
+          </div>
+          <span class="pill warn">${escapeHtml(watched.length)} tarefa(s) com tentativa/falha</span>
+          ${last}
+        </article>`;
+    }
+
+    function taskJITSummary(task) {
+      const items = ((task.payload || {}).jit_knowledge_packs || []).slice(0, 4);
+      if (!items.length) return '';
+      return `
+        <div class="jit-box">
+          <div class="card-head">
+            <h3>JIT packs usados</h3>
+            <span class="pill done">${items.length} pack(s)</span>
+          </div>
+          <div class="inline-actions">
+            ${items.map(item => `<span class="pill">${escapeHtml(item.topic)}${item.score ? ` · ${escapeHtml(item.score)}` : ''}</span>`).join('')}
+          </div>
+          ${items.map(item => `<div class="meta">${escapeHtml(item.summary || item.source || '')}</div>`).join('')}
+        </div>`;
+    }
+
+    function artifactAuditView(artifacts, sealedTasks) {
+      const artifactList = artifacts.length ? artifacts.map(a => `
+        <div class="audit-row">
+          <div class="card-head">
+            <h3>${escapeHtml(a.path)}</h3>
+            <span class="pill done">read-only</span>
+          </div>
+          <div class="inline-actions">
+            <span class="pill">contrato ${escapeHtml(a.contract_id)}</span>
+            <span class="pill">tarefa ${escapeHtml(a.task_id)}</span>
+          </div>
+          <div class="meta">sha256 ${escapeHtml(a.sha256)}</div>
+          <div class="meta">${escapeHtml(a.created_at || '')}</div>
+        </div>`).join('') : '<div class="empty">Nenhum artefato selado ainda.</div>';
+      const sealedList = sealedTasks.length ? sealedTasks.map(t => `
+        <div class="audit-row">
+          <div class="card-head">
+            <h3>#${t.id} ${escapeHtml(t.title)}</h3>
+            <span class="pill done">${escapeHtml(t.status)}</span>
+          </div>
+          <span class="pill">${escapeHtml(t.role)}</span>
+          <span class="pill">contrato ${escapeHtml(t.contract_id)}</span>
+          ${taskJITSummary(t)}
+          ${validationSummary(t)}
+          <pre>${escapeHtml(JSON.stringify(t.payload, null, 2))}</pre>
+        </div>`).join('') : '<div class="empty">Nenhuma tarefa selada ainda.</div>';
+      return `
+        <div class="list">
+          <article class="card">
+            <div class="card-head">
+              <h3>Artefatos</h3>
+              <span class="pill done">${escapeHtml(artifacts.length)} item(ns)</span>
+            </div>
+            <div class="audit-grid">${artifactList}</div>
+          </article>
+          <article class="card">
+            <div class="card-head">
+              <h3>Tarefas seladas</h3>
+              <span class="pill done">${escapeHtml(sealedTasks.length)} tarefa(s)</span>
+            </div>
+            <div class="list">${sealedList}</div>
+          </article>
+        </div>`;
+    }
+
+    function handoffView(handoffs) {
+      if (!handoffs.length) return '<div class="meta">Nenhum handoff registrado.</div>';
+      return `
+        <div class="list">
+          <article class="card">
+            <div class="card-head">
+              <h3>Transferências</h3>
+              <span class="pill">${escapeHtml(handoffs.length)} handoff(s)</span>
+            </div>
+            <div class="meta">Cada transferência mantém vínculo origem/destino e hash próprio.</div>
+          </article>
+          ${handoffs.map(t => `
+            <article class="card">
+              <div class="card-head">
+                <h3>Handoff #${t.id}</h3>
+                <span class="pill">${escapeHtml(t.kind)}</span>
+              </div>
+              <div class="dependency-line">
+                <span class="pill">origem #${escapeHtml(t.from_task_id)}</span>
+                <span class="dependency-arrow">→</span>
+                <span class="pill">destino ${t.to_task_id ? '#' + escapeHtml(t.to_task_id) : 'dependentes'}</span>
+              </div>
+              <span class="pill">contrato ${escapeHtml(t.contract_id)}</span>
+              <div class="meta">sha256 ${escapeHtml(t.sha256)}</div>
+              <div class="meta">${escapeHtml(t.created_at)}</div>
+              <pre>${escapeHtml(JSON.stringify(t.payload, null, 2))}</pre>
+            </article>`).join('')}
+        </div>`;
+    }
+
+    function pluginView(plugins, calls, commandRegistry, permissionScopes) {
+      const lastCall = calls[0] || null;
+      const registry = plugins.length ? plugins.map(p => `
+        <article class="card">
+          <div class="card-head">
+            <h3>${escapeHtml(p.name || p.id)}</h3>
+            <span class="pill ${p.enabled ? 'done' : 'warn'}">${p.enabled ? 'habilitado' : 'desabilitado'}</span>
+          </div>
+          <div class="meta">${escapeHtml(p.description || '')}</div>
+          <div class="meta">${escapeHtml(p.transport)} | ${escapeHtml(p.endpoint || p.command)} ${(p.args || []).map(escapeHtml).join(' ')}</div>
+          ${pluginSandboxSummary(p.sandbox || {})}
+          <pre>${escapeHtml(JSON.stringify(p.tools || [], null, 2))}</pre>
+        </article>`).join('') : '<div class="empty">Nenhum manifesto em plugins/*.json.</div>';
+      const latest = lastCall ? pluginCallCard(lastCall, true) : '<div class="empty">Nenhum resultado de plugin registrado.</div>';
+      const history = calls.length ? calls.map(c => `
+        ${pluginCallCard(c, false)}`).join('') : '<div class="empty">Nenhuma chamada de plugin registrada.</div>';
+      const commandCatalog = commandRegistry.length ? commandRegistry.map(command => `
+        <article class="audit-row">
+          <div>
+            <span class="pill ${command.enabled ? 'done' : 'warn'}">${command.enabled ? 'ativo' : 'inativo'}</span>
+            <span class="pill">${escapeHtml(command.kind)}</span>
+            <span class="pill">${escapeHtml(command.transport)}</span>
+          </div>
+          <div><strong>${escapeHtml(command.plugin_id)} / ${escapeHtml(command.tool)}</strong></div>
+          <div class="meta">${escapeHtml(command.target)}</div>
+          <div class="meta">${escapeHtml(command.manifest_path)}</div>
+        </article>`).join('') : '<div class="empty">Nenhum comando local/web registrado.</div>';
+      const permissions = permissionScopes.length ? permissionScopes.map(scope => `
+        <article class="audit-row">
+          <div>
+            <span class="pill ${scope.enabled ? 'done' : 'warn'}">${scope.enabled ? 'ativa' : 'inativa'}</span>
+            <span class="pill">${escapeHtml(scope.scope)}</span>
+            ${scope.contract_id ? `<span class="pill">contrato ${escapeHtml(scope.contract_id)}</span>` : ''}
+            ${scope.task_id ? `<span class="pill">tarefa ${escapeHtml(scope.task_id)}</span>` : ''}
+          </div>
+          <div><strong>${escapeHtml(scope.plugin_id)} / ${escapeHtml(scope.tool)}</strong></div>
+          <pre>${escapeHtml(JSON.stringify(parseJSON(scope.permissions) || scope.permissions, null, 2))}</pre>
+          <div class="meta">${escapeHtml(scope.updated_at)}</div>
+        </article>`).join('') : '<div class="empty">Nenhuma permissao por contrato/tarefa registrada.</div>';
+      return `
+        <div class="list">
+          <div class="card-head">
+            <h3>Ultimo resultado</h3>
+            <span class="pill">${escapeHtml(calls.length)} chamada(s)</span>
+          </div>
+          ${latest}
+          <h3>Registro de comandos locais e web</h3>
+          <div class="history-list">${commandCatalog}</div>
+          <h3>Permissoes por contrato/tarefa</h3>
+          <div class="history-list">${permissions}</div>
+          <h3>Manifestos</h3>
+          ${registry}
+          <h3>Historico de chamadas</h3>
+          <div class="history-list">${history}</div>
+        </div>`;
+    }
+
+    function pluginSandboxSummary(sandbox) {
+      const commands = sandbox.allow_commands || [];
+      const scripts = sandbox.approved_scripts || [];
+      const env = sandbox.allow_env || [];
+      return `
+        <div class="inline-actions">
+          <span class="pill done">sandbox</span>
+          <span class="pill">cmds ${escapeHtml(commands.length)}</span>
+          <span class="pill">scripts ${escapeHtml(scripts.length)}</span>
+          <span class="pill">env ${escapeHtml(env.length)}</span>
+        </div>
+        ${scripts.length ? `<div class="meta">scripts aprovados: ${escapeHtml(scripts.join(', '))}</div>` : ''}`;
+    }
+
+    function pluginCallCard(call, expanded) {
+      const result = parseJSON(call.output) || { output: call.output };
+      const input = parseJSON(call.input) || call.input;
+      const output = result.output ?? call.output ?? '';
+      const error = call.error || result.error || '';
+      const transport = call.transport || result.transport || '-';
+      const contractId = call.contract_id || result.contract_id || 0;
+      const taskId = call.task_id || result.task_id || 0;
+      const sandboxed = call.sandboxed || result.sandboxed;
+      const workDir = call.work_dir || result.work_dir || '';
+      return `
+        <article class="card">
+          <div class="card-head">
+            <h3>#${escapeHtml(call.id)} ${escapeHtml(call.plugin_id)} / ${escapeHtml(call.tool)}</h3>
+            <span class="pill ${call.ok ? 'done' : 'block'}">${call.ok ? 'ok' : 'falhou'}</span>
+          </div>
+          <span class="pill">${escapeHtml(call.duration || result.duration || '-')}</span>
+          <span class="pill">${escapeHtml(transport)}</span>
+          ${contractId ? `<span class="pill">contrato ${escapeHtml(contractId)}</span>` : ''}
+          ${taskId ? `<span class="pill">tarefa ${escapeHtml(taskId)}</span>` : ''}
+          ${sandboxed ? '<span class="pill done">sandboxed</span>' : ''}
+          ${workDir ? `<span class="pill">${escapeHtml(workDir)}</span>` : ''}
+          <div class="meta">${escapeHtml(call.created_at)}</div>
+          ${error ? `<div class="meta">erro: ${escapeHtml(error)}</div>` : ''}
+          <div class="plugin-result ${expanded ? '' : 'plugin-history'}">
+            <div>
+              <div class="meta">Entrada</div>
+              <pre>${escapeHtml(JSON.stringify(input, null, 2))}</pre>
+            </div>
+            <div>
+              <div class="meta">Resultado</div>
+              <pre>${escapeHtml(formatPluginOutput(output))}</pre>
+            </div>
+          </div>
+        </article>`;
+    }
+
+    function formatPluginOutput(output) {
+      const parsed = parseJSON(output);
+      return parsed ? JSON.stringify(parsed, null, 2) : output;
+    }
+
+    function knowledgePackView(items, candidates) {
+      const results = knowledgePackResults.length ? `
+        <article class="card">
+          <div class="card-head">
+            <h3>Resultado da busca</h3>
+            <span class="pill">${knowledgePackResults.length} item(ns)</span>
+          </div>
+          <div class="list">
+            ${knowledgePackResults.map(result => `
+              <div>
+                <span class="pill done">${escapeHtml(result.topic)}</span>
+                <span class="pill">score ${escapeHtml(result.score || 0)}</span>
+                <div class="meta">${escapeHtml(result.summary || '')}</div>
+              </div>`).join('')}
+          </div>
+        </article>` : '';
+      const pending = (candidates || []).filter(item => item.status === 'pending');
+      const candidateList = pending.length ? pending.map(item => `
+        <article class="audit-row">
+          <div>
+            <span class="pill warn">pendente</span>
+            <span class="pill">${escapeHtml(item.domain)}</span>
+            <span class="pill">task ${escapeHtml(item.task_id)}</span>
+          </div>
+          <div class="meta">pattern ${escapeHtml(item.pattern)} | action ${escapeHtml(item.action)}</div>
+          <div>${escapeHtml(item.template)}</div>
+          <div class="meta">${escapeHtml(item.evidence)}</div>
+          <div class="inline-actions">
+            <button class="primary" data-candidate-action="approve" data-candidate="${escapeHtml(item.id)}">Aprovar</button>
+            <button class="ghost" data-candidate-action="reject" data-candidate="${escapeHtml(item.id)}">Rejeitar</button>
+          </div>
+        </article>`).join('') : '<div class="empty">Nenhuma regra candidata pendente.</div>';
+      const inventory = items.length ? items.map(item => `
+        <article class="card">
+          <div class="card-head">
+            <h3>${escapeHtml(item.topic)}</h3>
+            <span class="pill done">${escapeHtml(item.rule_count || 0)} regras</span>
+          </div>
+          <div class="meta">${escapeHtml(item.source || 'origem local')}</div>
+          <div>${escapeHtml(item.summary || '')}</div>
+          <div class="inline-actions">
+            ${(item.keywords || []).slice(0, 10).map(k => `<span class="pill">${escapeHtml(k)}</span>`).join('')}
+          </div>
+          <div class="meta">${escapeHtml(item.created_at || '')}</div>
+        </article>`).join('') : '<div class="empty">Nenhum Knowledge Pack JIT local registrado.</div>';
+      return `
+        <div class="list">
+          <article class="card">
+            <div class="card-head">
+              <h3>Entrada JIT local</h3>
+              ${knowledgePackNotice ? `<span class="pill done">${escapeHtml(knowledgePackNotice)}</span>` : ''}
+            </div>
+            <form id="jitForm" class="field-list">
+              <label>Topico
+                <input id="jitTopic" autocomplete="off" placeholder="ex.: protocolo anti-sabotagem">
+              </label>
+              <label>Origem
+                <input id="jitSource" autocomplete="off" placeholder="ex.: documento oficial, anotacao local">
+              </label>
+              <label>Texto
+                <textarea id="jitText" placeholder="- Deve conter regras objetivas&#10;- Evitar texto generico&#10;- Sempre preservar contrato selado"></textarea>
+              </label>
+              <div class="actions">
+                <button class="primary" type="submit">Salvar JIT</button>
+                <button class="ghost" type="button" id="jitPurge">Purgar expirados</button>
+              </div>
+            </form>
+          </article>
+          <article class="card">
+            <div class="card-head">
+              <h3>Regras candidatas</h3>
+              <span class="pill warn">${escapeHtml(pending.length)} pendente(s)</span>
+            </div>
+            <div class="list">${candidateList}</div>
+          </article>
+          <article class="card">
+            <form id="jitSearchForm" class="split-actions">
+              <label>Busca local
+                <input id="jitSearch" autocomplete="off" placeholder="termos para testar relevancia">
+              </label>
+              <button class="ghost" type="submit">Buscar</button>
+            </form>
+          </article>
+          ${results}
+          ${inventory}
+        </div>`;
+    }
+
+    function auditMetricsView(data) {
+      const tasks = data.tasks || [];
+      const artifacts = data.artifacts || [];
+      const handoffs = data.handoffs || [];
+      const logs = data.logs || [];
+      const packs = data.knowledge_packs || [];
+      const candidates = data.knowledge_candidates || [];
+      const factory = data.factory_series || [];
+      const metrics = data.assertiveness || {};
+      const failures = tasks.filter(t => ['Bloqueado', 'Reprovado', 'Cancelado'].includes(t.status)).length;
+      return `
+        <div class="list">
+          <div class="metrics">
+            <div class="metric"><strong>${escapeHtml(artifacts.length)}</strong><span>Artefatos</span></div>
+            <div class="metric"><strong>${escapeHtml(handoffs.length)}</strong><span>Handoffs</span></div>
+            <div class="metric"><strong>${escapeHtml(packs.length)}</strong><span>Knowledge Packs</span></div>
+            <div class="metric"><strong>${escapeHtml(failures)}</strong><span>Falhas</span></div>
+            <div class="metric"><strong>${escapeHtml(metrics.approved || 0)}</strong><span>Aprovadas</span></div>
+            <div class="metric"><strong>${escapeHtml(metrics.redone || 0)}</strong><span>Refeitas</span></div>
+            <div class="metric"><strong>${escapeHtml(candidates.filter(c => c.status === 'pending').length)}</strong><span>Regras pendentes</span></div>
+            <div class="metric"><strong>${escapeHtml(logs.length)}</strong><span>Logs recentes</span></div>
+          </div>
+          ${factorySeriesView(factory)}
+          ${assertivenessDetailView(metrics)}
+        </div>`;
+    }
+
+    function factorySeriesView(items) {
+      if (!items.length) return '';
+      return `
+        <article class="card">
+          <div class="card-head">
+            <h3>Fabrica em Serie</h3>
+            <span class="pill">${escapeHtml(items.length)} lote(s)</span>
+          </div>
+          ${items.map(item => `
+            <div class="audit-row">
+              <div class="card-head">
+                <h3>${escapeHtml(item.batch_id)}</h3>
+                <span class="pill">${escapeHtml(item.current_index || 0)}/${escapeHtml(item.total || 0)}</span>
+              </div>
+              <div class="inline-actions">
+                <span class="pill">${escapeHtml(item.contracts)} contratos</span>
+                <span class="pill">${escapeHtml(item.tasks)} tarefas</span>
+                <span class="pill done">${escapeHtml(item.approved)} aprovadas</span>
+                <span class="pill block">${escapeHtml(item.blocked)} bloqueadas</span>
+              </div>
+            </div>`).join('')}
+        </article>`;
+    }
+
+    function assertivenessDetailView(metrics) {
+      const role = metrics.success_rate_by_role || [];
+      const domain = metrics.success_rate_by_domain || [];
+      return `
+        <article class="card">
+          <div class="card-head">
+            <h3>Assertividade por papel</h3>
+            <span class="pill">tempo médio ${escapeHtml(formatSeconds(metrics.average_seconds || 0))}</span>
+          </div>
+          ${metricTable(role)}
+        </article>
+        <article class="card">
+          <div class="card-head">
+            <h3>Assertividade por domínio</h3>
+            <span class="pill">${escapeHtml(domain.length)} domínio(s)</span>
+          </div>
+          ${metricTable(domain)}
+        </article>`;
+    }
+
+    function metricTable(items) {
+      if (!items.length) return '<div class="empty">Sem dados suficientes.</div>';
+      return items.map(item => `
+        <div class="audit-row">
+          <div class="card-head">
+            <h3>${escapeHtml(item.key)}</h3>
+            <span class="pill done">${Math.round((item.success_rate || 0) * 100)}%</span>
+          </div>
+          <div class="inline-actions">
+            <span class="pill done">${escapeHtml(item.approved)} aprovadas</span>
+            <span class="pill block">${escapeHtml(item.failed)} falhas</span>
+            <span class="pill">${escapeHtml(item.total)} total</span>
+            <span class="pill">${escapeHtml(formatSeconds(item.average_seconds || 0))}</span>
+          </div>
+        </div>`).join('');
+    }
+
+    function logsView(logs) {
+      if (!logs.length) return '<div class="empty">Nenhum log técnico registrado.</div>';
+      const counts = logs.reduce((acc, item) => {
+        acc[item.level] = (acc[item.level] || 0) + 1;
+        return acc;
+      }, {});
+      return `
+        <div class="list">
+          <article class="card">
+            <div class="card-head">
+              <h3>Logs técnicos</h3>
+              <span class="pill">${escapeHtml(logs.length)} recentes</span>
+            </div>
+            <div class="inline-actions">
+              ${Object.entries(counts).map(([level, count]) => `<span class="pill ${level === 'ERROR' ? 'block' : level === 'WARN' ? 'warn' : 'run'}">${escapeHtml(level)} ${escapeHtml(count)}</span>`).join('')}
+            </div>
+          </article>
+          ${logs.map(l => `
+            <article class="card log-row ${escapeHtml(l.level)}">
+              <span class="pill ${l.level === 'ERROR' ? 'block' : l.level === 'WARN' ? 'warn' : 'run'}">${escapeHtml(l.level)}</span>
+              <span class="pill">${escapeHtml(l.scope)}</span>
+              <div>${escapeHtml(l.message)}</div>
+              <div class="meta">${escapeHtml(l.created_at)}</div>
+            </article>`).join('')}
+        </div>`;
+    }
+
+    function engineView(engine) {
+      if (!engine) return '<div class="meta">Symbolic Engine ainda nao inicializado.</div>';
+      const packs = engine.packs || [];
+      return `
+        <article class="card">
+          <h3>${escapeHtml(engine.name || 'Symbolic Engine')}</h3>
+          <span class="pill done">${escapeHtml(engine.mode || 'symbolic')}</span>
+          <span class="pill">v${escapeHtml(engine.version || '2.0')}</span>
+          <div class="meta">${escapeHtml(engine.description || '')}</div>
+          <div class="metrics" style="margin-top:10px">
+            <div class="metric"><strong>${escapeHtml(engine.pack_count || 0)}</strong><span>Knowledge Packs</span></div>
+            <div class="metric"><strong>${escapeHtml(engine.rule_count || 0)}</strong><span>Regras</span></div>
+          </div>
+          ${packs.length ? packs.map(p => `
+            <div class="jit-box">
+              <div class="card-head">
+                <h3>${escapeHtml(p.domain)}</h3>
+                <span class="pill">${escapeHtml(p.rule_count)} regra(s)</span>
+              </div>
+              <div class="meta">versao ${escapeHtml(p.version || '-')} | carregado ${escapeHtml(p.loaded_at || '')}</div>
+            </div>`).join('') : '<div class="empty">Nenhum Knowledge Pack carregado.</div>'}
+        </article>`;
+    }
+
+    function canRetry(task) {
+      return !task.read_only && ['Reprovado', 'Bloqueado', 'Cancelado', 'Refazendo'].includes(task.status);
+    }
+
+    function validationSummary(task) {
+      const validations = (task.payload && task.payload.validations) || [];
+      if (!validations.length) return '';
+      return `<div class="list" style="margin:8px 0">${validations.map(v => `
+        <div>
+          <span class="pill ${v.passed ? 'done' : 'block'}">${escapeHtml(v.name)}</span>
+          <span class="meta">${escapeHtml(v.duration || '')}</span>
+          <pre>${escapeHtml(v.output || '')}</pre>
+        </div>`).join('')}</div>`;
+    }
+
+    function questionForm(session) {
+      const questions = session.questions || [];
+      const draft = interrogationDrafts[session.id];
+      return `
+        <div class="question-list">
+          ${questions.map((q, i) => `
+            <label><span><span class="question-index">${i + 1}</span>${escapeHtml(q)}</span>
+              <input data-answer="${session.id}:q${i + 1}" value="${escapeHtml((session.answers || {})['q' + (i + 1)] || '')}">
+            </label>`).join('')}
+          <div class="meta">Responda o suficiente para formar um contrato auditável. Depois gere a revisão, ajuste o texto final e sele.</div>
+          <div class="inline-actions">
+            <button class="ghost" data-preview="${session.id}">Pré-visualizar contrato</button>
+          </div>
+          ${draft ? contractDraftForm(session.id, draft) : ''}
+        </div>`;
+    }
+
+    function contractDraftForm(id, draft) {
+      return `
+        <div class="contract-draft">
+          <div class="card-head">
+            <h3>Contrato em revisão</h3>
+            <span class="pill">hash ${escapeHtml(draft.hash || 'recalculado ao selar')}</span>
+          </div>
+          <label>Objetivo final
+            <textarea data-draft="${id}:north_star">${escapeHtml(draft.north_star || '')}</textarea>
+          </label>
+          <label>Restrições
+            <textarea data-draft="${id}:constraints">${escapeHtml(draft.constraints || '')}</textarea>
+          </label>
+          <label>Entregáveis
+            <textarea data-draft="${id}:deliverables">${escapeHtml(draft.deliverables || '')}</textarea>
+          </label>
+          <div class="inline-actions">
+            <button class="primary" data-finalize="${id}">Selar contrato revisado</button>
+          </div>
+        </div>`;
+    }
+
+    async function refresh() {
+      const res = await fetch('/api/snapshot');
+      snapshot = await res.json();
+      render();
+    }
+
+    $('send').onclick = async () => {
+      const input = $('input').value.trim();
+      if (!input) return;
+      await fetch('/api/interrogations', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ input }) });
+      $('input').value = '';
+      refresh();
+    };
+    $('legacy').onclick = async () => {
+      const input = $('input').value.trim();
+      if (!input) return;
+      await fetch('/api/projects', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ input }) });
+      $('input').value = '';
+      refresh();
+    };
+    $('yamlSend').onclick = async () => {
+      const yaml = $('yamlInput').value.trim();
+      if (!yaml) return;
+      await fetch('/api/projects/yaml', { method: 'POST', headers: {'Content-Type': 'text/plain'}, body: yaml });
+      $('yamlInput').value = '';
+      refresh();
+    };
+    $('factorySend').onclick = async () => {
+      const template = $('input').value.trim();
+      const items = $('factoryItems').value.split('\n').map(x => x.trim()).filter(Boolean);
+      if (!template || !items.length) return;
+      await fetch('/api/factory_series', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ template, items })
+      });
+      $('input').value = '';
+      $('factoryItems').value = '';
+      refresh();
+    };
+    document.addEventListener('click', async (event) => {
+      const previewButton = event.target.closest('[data-preview]');
+      if (previewButton) {
+        const id = Number(previewButton.dataset.preview);
+        const answers = answersForInterrogation(id);
+        const res = await fetch('/api/interrogations/preview', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ id, answers }) });
+        if (res.ok) {
+          interrogationDrafts[id] = await res.json();
+          render();
+        }
+        return;
+      }
+      const button = event.target.closest('[data-finalize]');
+      if (!button) return;
+      const id = Number(button.dataset.finalize);
+      const answers = answersForInterrogation(id);
+      const draft = draftForInterrogation(id);
+      await fetch('/api/interrogations/finalize', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ id, answers, ...draft }) });
+      delete interrogationDrafts[id];
+      refresh();
+    });
+
+    function answersForInterrogation(id) {
+      const answers = {};
+      document.querySelectorAll(`[data-answer^="${id}:"]`).forEach(input => {
+        answers[input.dataset.answer.split(':')[1]] = input.value.trim();
+      });
+      return answers;
+    }
+
+    function draftForInterrogation(id) {
+      const draft = {};
+      document.querySelectorAll(`[data-draft^="${id}:"]`).forEach(input => {
+        draft[input.dataset.draft.split(':')[1]] = input.value.trim();
+      });
+      return draft;
+    }
+    document.addEventListener('click', async (event) => {
+      const actionButton = event.target.closest('[data-task-action]');
+      if (actionButton) {
+        const id = Number(actionButton.dataset.task);
+        const action = actionButton.dataset.taskAction;
+        const reason = prompt(action === 'cancel' ? 'Motivo tecnico da parada:' : 'Motivo da refacao:') || '';
+        await fetch('/api/tasks/action', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ id, action, reason }) });
+        refresh();
+        return;
+      }
+      const reauditButton = event.target.closest('[data-reaudit]');
+      if (reauditButton) {
+        const id = Number(reauditButton.dataset.reaudit);
+        await fetch('/api/contracts/reaudit', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ id }) });
+        refresh();
+        return;
+      }
+      const purgeButton = event.target.closest('#jitPurge');
+      if (purgeButton) {
+        const res = await fetch('/api/knowledge_packs/purge', { method: 'POST' });
+        const data = await res.json();
+        knowledgePackNotice = `${data.removed || 0} expirado(s)`;
+        await refresh();
+        return;
+      }
+      const candidateButton = event.target.closest('[data-candidate-action]');
+      if (candidateButton) {
+        const id = Number(candidateButton.dataset.candidate);
+        const action = candidateButton.dataset.candidateAction;
+        const res = await fetch('/api/knowledge_candidates', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ id, action })
+        });
+        knowledgePackNotice = res.ok ? (action === 'approve' ? 'regra aprovada' : 'regra rejeitada') : 'erro na regra candidata';
+        await refresh();
+      }
+    });
+    document.addEventListener('submit', async (event) => {
+      if (event.target.id === 'jitForm') {
+        event.preventDefault();
+        const topic = $('jitTopic').value.trim();
+        const source = $('jitSource').value.trim();
+        const text = $('jitText').value.trim();
+        if (!topic || !text) return;
+        const res = await fetch('/api/knowledge_packs', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ topic, source, text })
+        });
+        if (res.ok) {
+          knowledgePackNotice = 'salvo';
+          knowledgePackResults = [];
+          await refresh();
+        } else {
+          const data = await res.json();
+          knowledgePackNotice = data.error || 'erro';
+          render();
+        }
+        return;
+      }
+      if (event.target.id === 'jitSearchForm') {
+        event.preventDefault();
+        const query = $('jitSearch').value.trim();
+        if (!query) return;
+        const res = await fetch(`/api/knowledge_packs?q=${encodeURIComponent(query)}&limit=8`);
+        knowledgePackResults = res.ok ? await res.json() : [];
+        knowledgePackNotice = knowledgePackResults.length ? 'busca concluida' : 'sem resultado';
+        render();
+      }
+    });
+    $('panic').onclick = async () => {
+      const reason = prompt('Motivo tecnico da interrupcao:') || 'interrupcao manual';
+      await fetch('/api/panic', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ reason }) });
+      refresh();
+    };
+    $('resume').onclick = async () => {
+      await fetch('/api/resume', { method: 'POST' });
+      refresh();
+    };
+    document.querySelectorAll('.tab').forEach(btn => btn.onclick = () => {
+      document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+      btn.classList.add('active');
+      $('engine').classList.toggle('hidden', btn.dataset.tab !== 'engine');
+      $('sealed').classList.toggle('hidden', btn.dataset.tab !== 'sealed');
+      $('handoffs').classList.toggle('hidden', btn.dataset.tab !== 'handoffs');
+      $('plugins').classList.toggle('hidden', btn.dataset.tab !== 'plugins');
+      $('knowledge_packs').classList.toggle('hidden', btn.dataset.tab !== 'knowledge_packs');
+      $('audit_metrics').classList.toggle('hidden', btn.dataset.tab !== 'audit_metrics');
+      $('logs').classList.toggle('hidden', btn.dataset.tab !== 'logs');
+    });
+    document.querySelectorAll('.filter').forEach(btn => btn.onclick = () => {
+      document.querySelectorAll('.filter').forEach(x => x.classList.remove('active'));
+      btn.classList.add('active');
+      taskFilter = btn.dataset.filter;
+      render();
+    });
+    document.querySelectorAll('.mode').forEach(btn => btn.onclick = () => {
+      document.querySelectorAll('.mode').forEach(x => x.classList.remove('active'));
+      btn.classList.add('active');
+      inputMode = btn.dataset.mode;
+      $('input').classList.toggle('hidden', inputMode !== 'interrogate');
+      if (inputMode === 'factory') $('input').classList.remove('hidden');
+      $('send').classList.toggle('hidden', inputMode !== 'interrogate');
+      $('legacy').classList.toggle('hidden', inputMode !== 'interrogate');
+      $('yamlInput').classList.toggle('hidden', inputMode !== 'yaml');
+      $('yamlSend').classList.toggle('hidden', inputMode !== 'yaml');
+      $('factoryItems').classList.toggle('hidden', inputMode !== 'factory');
+      $('factorySend').classList.toggle('hidden', inputMode !== 'factory');
+    });
+
+    function connect() {
+      const ws = new WebSocket(`ws://${location.host}/ws`);
+      ws.onopen = () => { $('conn').className = 'dot ok'; };
+      ws.onmessage = (event) => {
+        const msg = JSON.parse(event.data);
+        if (msg.kind === 'snapshot') snapshot = msg.payload;
+        if (msg.kind === 'watchdog') latestWatchdog = msg.payload;
+        render();
+      };
+      ws.onclose = () => {
+        $('conn').className = 'dot';
+        $('state').textContent = 'Reconectando';
+        setTimeout(connect, 1500);
+      };
+    }
+    refresh();
+    connect();
+  </script>
+</body>
+</html>

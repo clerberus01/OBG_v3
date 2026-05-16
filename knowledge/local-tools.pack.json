@@ -1,0 +1,31 @@
+{
+  "domain": "local-tools",
+  "version": "2.0",
+  "rules": [
+    {
+      "pattern": "git",
+      "action": "git_read_only",
+      "template": "Permitir git apenas para leitura e inspecao: status, diff, log, show, branch, rev-parse, ls-files, remote -v e version."
+    },
+    {
+      "pattern": "docker",
+      "action": "container_inspection_only",
+      "template": "Permitir docker/podman apenas para inspecao: ps, images, inspect, logs, info, version e compose ps/logs/config."
+    },
+    {
+      "pattern": "script",
+      "action": "approved_script_only",
+      "template": "Executar scripts locais somente quando declarados em approved_scripts e sempre via caminho relativo aprovado."
+    },
+    {
+      "pattern": "allow_commands",
+      "action": "explicit_command_pattern",
+      "template": "Registrar comandos controlados com subcomando explicito; entradas como git, docker, podman ou curl isoladas nao concedem permissao."
+    },
+    {
+      "pattern": "sandbox",
+      "action": "scoped_workdir_and_permissions",
+      "template": "Executar ferramentas locais dentro do workdir escopado por contrato/tarefa e combinar permissoes de forma restritiva."
+    }
+  ]
+}

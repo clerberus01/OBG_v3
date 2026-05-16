@@ -1,0 +1,26 @@
+{
+  "domain": "code",
+  "version": "2.0",
+  "rules": [
+    {
+      "pattern": "codigo",
+      "action": "scope_files",
+      "template": "Mapear arquivos afetados, entradas, saidas e comandos de validacao antes de alterar codigo."
+    },
+    {
+      "pattern": "teste",
+      "action": "run_regression",
+      "template": "Executar testes de regressao relacionados e registrar comando, resultado e evidencia."
+    },
+    {
+      "pattern": "api",
+      "action": "contract_api",
+      "template": "Validar contrato de API, status HTTP, payload JSON e compatibilidade do endpoint."
+    },
+    {
+      "pattern": "build",
+      "action": "build_gate",
+      "template": "Nao selar entrega de codigo sem build reproduzivel e resultado registrado."
+    }
+  ]
+}

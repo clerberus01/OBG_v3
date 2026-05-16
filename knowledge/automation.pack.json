@@ -1,0 +1,26 @@
+{
+  "domain": "automation",
+  "version": "2.0",
+  "rules": [
+    {
+      "pattern": "automacao",
+      "action": "map_triggers",
+      "template": "Mapear gatilhos, entradas, saidas, permissoes e falhas esperadas antes de automatizar."
+    },
+    {
+      "pattern": "script",
+      "action": "idempotent_script",
+      "template": "Criar script idempotente, com logs, validacao de parametros e erro explicito."
+    },
+    {
+      "pattern": "pipeline",
+      "action": "pipeline_gate",
+      "template": "Definir etapas, dependencias, rollback e evidencia por etapa do pipeline."
+    },
+    {
+      "pattern": "webhook",
+      "action": "webhook_contract",
+      "template": "Validar payload, autenticacao, reentrega e rastreabilidade do webhook."
+    }
+  ]
+}

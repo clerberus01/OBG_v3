@@ -1,0 +1,31 @@
+{
+  "domain": "web-services",
+  "version": "2.0",
+  "rules": [
+    {
+      "pattern": "web-service",
+      "action": "https_only_endpoint",
+      "template": "Declarar servicos web somente como web-service com endpoint HTTPS, sem localhost ou loopback."
+    },
+    {
+      "pattern": "endpoint",
+      "action": "explicit_endpoint_contract",
+      "template": "Registrar endpoint, metodo esperado, headers permitidos, timeout e formato JSON de resposta antes da chamada."
+    },
+    {
+      "pattern": "curl",
+      "action": "read_only_http_probe",
+      "template": "Usar curl apenas para GET ou HEAD; bloquear POST, upload, escrita em arquivo, proxy e configuracoes externas."
+    },
+    {
+      "pattern": "headers",
+      "action": "header_safety",
+      "template": "Validar nomes e valores de headers sem quebras de linha, bytes nulos ou injecao de cabecalho."
+    },
+    {
+      "pattern": "auditoria",
+      "action": "persist_web_result",
+      "template": "Persistir status, transporte, contrato, tarefa, duracao, erro e resposta resumida no SQLite."
+    }
+  ]
+}

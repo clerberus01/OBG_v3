@@ -1,0 +1,22 @@
+{
+  "id": "echo",
+  "name": "Echo MCP Fixture",
+  "description": "Exemplo local de plugin stdio-json para validar a camada MCP do OBG.",
+  "transport": "stdio-json",
+  "command": "cmd",
+  "args": ["/c", "more"],
+  "enabled": false,
+  "timeout_seconds": 10,
+  "sandbox": {
+    "allow_commands": [],
+    "approved_scripts": [],
+    "allow_env": [],
+    "max_output_bytes": 16000
+  },
+  "tools": [
+    {
+      "name": "echo",
+      "description": "Devolve o envelope JSON-RPC recebido pelo stdin."
+    }
+  ]
+}
