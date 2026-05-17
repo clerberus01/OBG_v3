@@ -1,6 +1,6 @@
 module omni-bot-go
 
-go 1.26.1
+go 1.26.3
 
 require modernc.org/sqlite v1.50.1
 

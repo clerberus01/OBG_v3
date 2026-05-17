@@ -33,6 +33,7 @@
 ## Regras de build
 
 - `CGO_ENABLED=0` e obrigatorio.
+- Go 1.26.3 ou superior e obrigatorio para builds/crivo; Go 1.26.1 falha no `govulncheck` por vulnerabilidades da biblioteca padrao.
 - SQLite deve continuar em `modernc.org/sqlite`.
 - O build oficial sai em `bin/omni-bot-go.exe`.
 - Nao use `go build ./cmd` como build final, porque isso gera `cmd.exe` na raiz.
@@ -46,6 +47,7 @@
 - O pacote distribuivel sai em `dist/omni-bot-go-<versao>/`.
 - `scripts/supervise.ps1` nao compila nada; ele apenas supervisiona um executavel ja gerado e reinicia em caso de falha.
 - Validacao externa com `go build`/`go test` fica desativada por padrao para evitar criacao de executaveis temporarios que podem acionar antivirus. Use `.\scripts\run.ps1 -EnableGoValidation` apenas quando precisar desse crivo.
+- Os scripts preferem `go1.26.3` quando instalado via `golang.org/dl`; caso contrario usam `go` do PATH.
 
 ## Antivirus
 

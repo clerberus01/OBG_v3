@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"crypto/sha256"
+	"database/sql"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -64,6 +65,7 @@ type Manager struct {
 	pluginsDir     string
 	bus            *EventBus
 	workerQueues   map[int]chan database.Task
+	planningMu     sync.Mutex
 	ctx            context.Context
 	cancel         context.CancelFunc
 }
@@ -98,6 +100,48 @@ type assertivenessMetrics struct {
 	SuccessRateByDomain []successRateItem `json:"success_rate_by_domain"`
 }
 
+type contractDashboardSummary struct {
+	ContractID     int64     `json:"contract_id"`
+	Hash           string    `json:"hash"`
+	NorthStar      string    `json:"north_star"`
+	Tasks          int       `json:"tasks"`
+	Pending        int       `json:"pending"`
+	Running        int       `json:"running"`
+	Approved       int       `json:"approved"`
+	Blocked        int       `json:"blocked"`
+	ReadOnly       int       `json:"read_only"`
+	Domains        []string  `json:"domains"`
+	Roles          []string  `json:"roles"`
+	FactoryBatchID string    `json:"factory_batch_id,omitempty"`
+	FactoryIndex   int       `json:"factory_index,omitempty"`
+	FactoryTotal   int       `json:"factory_total,omitempty"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
+}
+
+type taskDependencyEdge struct {
+	ContractID    int64  `json:"contract_id"`
+	FromTaskID    int64  `json:"from_task_id"`
+	ToTaskID      int64  `json:"to_task_id"`
+	ToStatus      string `json:"to_status"`
+	FromStatus    string `json:"from_status,omitempty"`
+	Blocked       bool   `json:"blocked"`
+	CrossContract bool   `json:"cross_contract"`
+}
+
+type watchdogSnapshotEvent struct {
+	TaskID     int64  `json:"task_id"`
+	ContractID int64  `json:"contract_id"`
+	Title      string `json:"title"`
+	Role       string `json:"role"`
+	Attempt    int    `json:"attempt"`
+	Limit      int    `json:"limit"`
+	Reason     string `json:"reason"`
+	Status     string `json:"status"`
+	Blocked    bool   `json:"blocked"`
+	FailedAt   string `json:"failed_at,omitempty"`
+}
+
 type factorySeriesSummary struct {
 	BatchID      string `json:"batch_id"`
 	Mode         string `json:"mode"`
@@ -130,6 +174,7 @@ type FactorySeriesRequest struct {
 	Items        []string `json:"items"`
 	Constraints  string   `json:"constraints"`
 	Deliverables string   `json:"deliverables"`
+	ForceNew     bool     `json:"force_new"`
 }
 
 type FactorySeriesResult struct {
@@ -137,6 +182,13 @@ type FactorySeriesResult struct {
 	Mode      string              `json:"mode"`
 	Count     int                 `json:"count"`
 	Contracts []database.Contract `json:"contracts"`
+}
+
+type FactoryBatchActionRequest struct {
+	BatchID string `json:"batch_id"`
+	Action  string `json:"action"`
+	Index   int    `json:"index,omitempty"`
+	Reason  string `json:"reason"`
 }
 
 func NewManager(store *database.Store, eng *engine.Engine, knowledgePacks *knowledge.Library, bus *EventBus) *Manager {
@@ -264,6 +316,9 @@ func (m *Manager) CreateFactorySeries(req FactorySeriesRequest) (FactorySeriesRe
 		return FactorySeriesResult{}, errors.New("fabrica limitada a 50 itens por lote")
 	}
 	batchID := factoryBatchID(req.Template, items)
+	if req.ForceNew {
+		batchID = factoryBatchIDWithSalt(req.Template, items, time.Now().UTC().Format(time.RFC3339Nano))
+	}
 	constraints := strings.TrimSpace(req.Constraints)
 	if constraints == "" {
 		constraints = "Executar em serie; preservar contrato imutavel por item; SQLite como fonte de verdade; sem modelos externos em producao."
@@ -272,6 +327,29 @@ func (m *Manager) CreateFactorySeries(req FactorySeriesRequest) (FactorySeriesRe
 	if deliverables == "" {
 		deliverables = "Artefatos auditaveis por item, handoffs encadeados, logs tecnicos e crivo final por contrato."
 	}
+
+	m.planningMu.Lock()
+	defer m.planningMu.Unlock()
+
+	if !req.ForceNew {
+		existing, err := m.store.GetFactoryBatch(batchID)
+		if err == nil {
+			result, err := m.factorySeriesResultFromBatch(existing)
+			if err != nil {
+				return FactorySeriesResult{}, err
+			}
+			m.store.Log("INFO", "factory-series", fmt.Sprintf("lote %s ja existia; retornando sem duplicar contratos", batchID))
+			return result, nil
+		}
+		if !errors.Is(err, sql.ErrNoRows) {
+			return FactorySeriesResult{}, err
+		}
+	}
+
+	if _, err := m.store.UpsertFactoryBatch(batchID, req.Template, items, constraints, deliverables, "active"); err != nil {
+		return FactorySeriesResult{}, err
+	}
+
 	result := FactorySeriesResult{BatchID: batchID, Mode: "factory-series", Count: len(items)}
 	var previousFinalTaskID int64
 	var previousContractID int64
@@ -280,6 +358,9 @@ func (m *Manager) CreateFactorySeries(req FactorySeriesRequest) (FactorySeriesRe
 		itemConstraints := fmt.Sprintf("%s Lote factory-series %s; item %d/%d; item=%s.", constraints, batchID, index+1, len(items), item)
 		contract, err := m.store.CreateContract(northStar, itemConstraints, deliverables)
 		if err != nil {
+			return FactorySeriesResult{}, err
+		}
+		if _, err := m.store.UpsertFactoryItem(batchID, index+1, item, contract.ID, "created"); err != nil {
 			return FactorySeriesResult{}, err
 		}
 		factoryPayload := map[string]any{
@@ -313,6 +394,9 @@ func (m *Manager) CreateFactorySeries(req FactorySeriesRequest) (FactorySeriesRe
 }
 
 func (m *Manager) createContractWithTasks(northStar, constraints, deliverables string) (database.Contract, error) {
+	m.planningMu.Lock()
+	defer m.planningMu.Unlock()
+
 	contract, err := m.store.CreateContract(northStar, constraints, deliverables)
 	if err != nil {
 		return database.Contract{}, err
@@ -402,6 +486,30 @@ func factoryBatchID(template string, items []string) string {
 	return hex.EncodeToString(sum[:])[:12]
 }
 
+func factoryBatchIDWithSalt(template string, items []string, salt string) string {
+	sum := sha256.Sum256([]byte(strings.TrimSpace(template) + "\n" + strings.Join(items, "\n") + "\n" + strings.TrimSpace(salt)))
+	return hex.EncodeToString(sum[:])[:12]
+}
+
+func (m *Manager) factorySeriesResultFromBatch(batch database.FactoryBatch) (FactorySeriesResult, error) {
+	items, err := m.store.ListFactoryItems(batch.BatchID)
+	if err != nil {
+		return FactorySeriesResult{}, err
+	}
+	result := FactorySeriesResult{BatchID: batch.BatchID, Mode: "factory-series", Count: batch.Total}
+	for _, item := range items {
+		if item.ContractID == 0 {
+			continue
+		}
+		contract, err := m.store.GetContract(item.ContractID)
+		if err != nil {
+			return FactorySeriesResult{}, err
+		}
+		result.Contracts = append(result.Contracts, contract)
+	}
+	return result, nil
+}
+
 func renderFactoryTemplate(template, item string, index, total int, batchID string) string {
 	out := strings.TrimSpace(template)
 	replacer := strings.NewReplacer(
@@ -463,6 +571,118 @@ func (m *Manager) RetryTask(taskID int64, reason string) error {
 	return nil
 }
 
+func (m *Manager) FactoryBatchAction(req FactoryBatchActionRequest) (map[string]any, error) {
+	req.BatchID = strings.TrimSpace(req.BatchID)
+	req.Action = strings.TrimSpace(strings.ToLower(req.Action))
+	if req.BatchID == "" {
+		return nil, errors.New("batch_id ausente")
+	}
+	if strings.TrimSpace(req.Reason) == "" {
+		req.Reason = "acao operacional da fabrica"
+	}
+	switch req.Action {
+	case "pause":
+		batch, err := m.store.SetFactoryBatchStatus(req.BatchID, "paused")
+		if err != nil {
+			return nil, err
+		}
+		m.store.Log("WARN", "factory-series", fmt.Sprintf("lote %s pausado: %s", req.BatchID, req.Reason))
+		m.bus.Publish("snapshot", m.Snapshot())
+		return map[string]any{"batch": batch, "action": req.Action}, nil
+	case "resume":
+		batch, err := m.store.SetFactoryBatchStatus(req.BatchID, "active")
+		if err != nil {
+			return nil, err
+		}
+		m.store.Log("INFO", "factory-series", fmt.Sprintf("lote %s retomado: %s", req.BatchID, req.Reason))
+		m.bus.Publish("snapshot", m.Snapshot())
+		return map[string]any{"batch": batch, "action": req.Action}, nil
+	case "cancel":
+		batch, affected, err := m.cancelFactoryBatch(req.BatchID, req.Reason)
+		if err != nil {
+			return nil, err
+		}
+		m.bus.Publish("snapshot", m.Snapshot())
+		return map[string]any{"batch": batch, "action": req.Action, "cancelled_tasks": affected}, nil
+	case "skip":
+		item, affected, err := m.skipFactoryItem(req.BatchID, req.Index, req.Reason)
+		if err != nil {
+			return nil, err
+		}
+		m.bus.Publish("snapshot", m.Snapshot())
+		return map[string]any{"item": item, "action": req.Action, "cancelled_tasks": affected}, nil
+	case "reprocess":
+		item, task, err := m.reprocessFactoryItem(req.BatchID, req.Index, req.Reason)
+		if err != nil {
+			return nil, err
+		}
+		m.bus.Publish("snapshot", m.Snapshot())
+		return map[string]any{"item": item, "reaudit_task": task, "action": req.Action}, nil
+	default:
+		return nil, errors.New("acao de fabrica desconhecida")
+	}
+}
+
+func (m *Manager) cancelFactoryBatch(batchID, reason string) (database.FactoryBatch, int64, error) {
+	batch, err := m.store.SetFactoryBatchStatus(batchID, "cancelled")
+	if err != nil {
+		return database.FactoryBatch{}, 0, err
+	}
+	items, err := m.store.ListAllFactoryItems(1000)
+	if err != nil {
+		return database.FactoryBatch{}, 0, err
+	}
+	var affected int64
+	for _, item := range items {
+		if item.BatchID != batchID {
+			continue
+		}
+		_, _ = m.store.SetFactoryItemStatus(batchID, item.Index, "cancelled")
+		if item.ContractID == 0 {
+			continue
+		}
+		count, err := m.store.CancelFactoryItemTasks(item.ContractID, reason)
+		if err != nil {
+			return database.FactoryBatch{}, 0, err
+		}
+		affected += count
+	}
+	m.store.Log("WARN", "factory-series", fmt.Sprintf("lote %s cancelado: %s", batchID, reason))
+	return batch, affected, nil
+}
+
+func (m *Manager) skipFactoryItem(batchID string, index int, reason string) (database.FactoryItem, int64, error) {
+	item, err := m.store.SetFactoryItemStatus(batchID, index, "skipped")
+	if err != nil {
+		return database.FactoryItem{}, 0, err
+	}
+	var affected int64
+	if item.ContractID != 0 {
+		affected, err = m.store.CancelFactoryItemTasks(item.ContractID, reason)
+		if err != nil {
+			return database.FactoryItem{}, 0, err
+		}
+	}
+	m.store.Log("WARN", "factory-series", fmt.Sprintf("item %d do lote %s pulado: %s", index, batchID, reason))
+	return item, affected, nil
+}
+
+func (m *Manager) reprocessFactoryItem(batchID string, index int, reason string) (database.FactoryItem, database.Task, error) {
+	item, err := m.store.SetFactoryItemStatus(batchID, index, "reprocess_requested")
+	if err != nil {
+		return database.FactoryItem{}, database.Task{}, err
+	}
+	if item.ContractID == 0 {
+		return database.FactoryItem{}, database.Task{}, errors.New("item da fabrica sem contrato para reprocessar")
+	}
+	task, err := m.ReauditContract(item.ContractID)
+	if err != nil {
+		return database.FactoryItem{}, database.Task{}, err
+	}
+	m.store.Log("INFO", "factory-series", fmt.Sprintf("item %d do lote %s marcado para reprocessamento: %s", index, batchID, reason))
+	return item, task, nil
+}
+
 func (m *Manager) ReauditContract(contractID int64) (database.Task, error) {
 	if _, err := m.store.GetContract(contractID); err != nil {
 		return database.Task{}, err
@@ -490,14 +710,21 @@ func (m *Manager) Snapshot() map[string]any {
 	knowledgeCandidates, _ := m.store.ListKnowledgeCandidates("", 80)
 	agents, _ := m.store.ListAgents()
 	logs, _ := m.store.ListLogs(80)
+	factoryBatches, _ := m.store.ListFactoryBatches(80)
+	factoryItems, _ := m.store.ListAllFactoryItems(500)
 	return map[string]any{
 		"blocked":                  m.store.SystemBlocked(),
 		"build":                    buildInfo(),
 		"engine":                   m.engine.Info(),
 		"interrogations":           interrogations,
 		"contracts":                contracts,
+		"contract_summaries":       buildContractDashboardSummaries(contracts, tasks),
 		"tasks":                    tasks,
+		"task_dependencies":        buildTaskDependencyEdges(tasks),
+		"watchdog_events":          buildWatchdogSnapshotEvents(tasks),
 		"factory_series":           buildFactorySeriesSummaries(tasks),
+		"factory_batches":          factoryBatches,
+		"factory_items":            factoryItems,
 		"assertiveness":            buildAssertivenessMetrics(tasks),
 		"artifacts":                artifacts,
 		"handoffs":                 handoffs,
@@ -510,6 +737,145 @@ func (m *Manager) Snapshot() map[string]any {
 		"agents":                   agents,
 		"logs":                     logs,
 	}
+}
+
+func buildContractDashboardSummaries(contracts []database.Contract, tasks []database.Task) []contractDashboardSummary {
+	summaries := make([]contractDashboardSummary, len(contracts))
+	byContract := map[int64]*contractDashboardSummary{}
+	domainsByContract := map[int64]map[string]struct{}{}
+	rolesByContract := map[int64]map[string]struct{}{}
+	for i, contract := range contracts {
+		summaries[i] = contractDashboardSummary{
+			ContractID: contract.ID,
+			Hash:       contract.Hash,
+			NorthStar:  contract.NorthStar,
+			CreatedAt:  contract.CreatedAt,
+			UpdatedAt:  contract.CreatedAt,
+		}
+		byContract[contract.ID] = &summaries[i]
+		domainsByContract[contract.ID] = map[string]struct{}{}
+		rolesByContract[contract.ID] = map[string]struct{}{}
+	}
+	for _, task := range tasks {
+		item := byContract[task.ContractID]
+		if item == nil {
+			continue
+		}
+		item.Tasks++
+		if task.ReadOnly {
+			item.ReadOnly++
+		}
+		switch task.Status {
+		case database.StatusApproved:
+			item.Approved++
+		case database.StatusRunning:
+			item.Running++
+		case database.StatusBlocked, database.StatusRejected, database.StatusCancelled:
+			item.Blocked++
+		default:
+			item.Pending++
+		}
+		if task.UpdatedAt.After(item.UpdatedAt) {
+			item.UpdatedAt = task.UpdatedAt
+		}
+		if domain := strings.TrimSpace(fmt.Sprint(task.Payload["domain"])); domain != "" && domain != "<nil>" {
+			domainsByContract[task.ContractID][domain] = struct{}{}
+		}
+		if role := strings.TrimSpace(task.Role); role != "" {
+			rolesByContract[task.ContractID][role] = struct{}{}
+		}
+		if factory, ok := task.Payload["factory"].(map[string]any); ok {
+			if item.FactoryBatchID == "" {
+				item.FactoryBatchID = strings.TrimSpace(fmt.Sprint(factory["batch_id"]))
+				item.FactoryIndex = intFromFactoryValue(factory["index"])
+				item.FactoryTotal = intFromFactoryValue(factory["total"])
+			}
+		}
+	}
+	for i := range summaries {
+		summaries[i].Domains = sortedKeys(domainsByContract[summaries[i].ContractID])
+		summaries[i].Roles = sortedKeys(rolesByContract[summaries[i].ContractID])
+	}
+	return summaries
+}
+
+func buildTaskDependencyEdges(tasks []database.Task) []taskDependencyEdge {
+	byID := map[int64]database.Task{}
+	for _, task := range tasks {
+		byID[task.ID] = task
+	}
+	var edges []taskDependencyEdge
+	for _, task := range tasks {
+		for _, depID := range task.Dependencies {
+			dep := byID[depID]
+			edges = append(edges, taskDependencyEdge{
+				ContractID:    task.ContractID,
+				FromTaskID:    depID,
+				ToTaskID:      task.ID,
+				ToStatus:      task.Status,
+				FromStatus:    dep.Status,
+				Blocked:       task.Status == database.StatusPending && dep.Status != database.StatusApproved,
+				CrossContract: dep.ID != 0 && dep.ContractID != task.ContractID,
+			})
+		}
+	}
+	sort.Slice(edges, func(i, j int) bool {
+		if edges[i].ToTaskID == edges[j].ToTaskID {
+			return edges[i].FromTaskID < edges[j].FromTaskID
+		}
+		return edges[i].ToTaskID < edges[j].ToTaskID
+	})
+	return edges
+}
+
+func buildWatchdogSnapshotEvents(tasks []database.Task) []watchdogSnapshotEvent {
+	var events []watchdogSnapshotEvent
+	for _, task := range tasks {
+		watchdog, _ := task.Payload["watchdog"].(map[string]any)
+		if task.Attempts == 0 && len(watchdog) == 0 {
+			continue
+		}
+		limit := intFromFactoryValue(watchdog["limit"])
+		if limit == 0 {
+			limit = 3
+		}
+		attempt := intFromFactoryValue(watchdog["attempt"])
+		if attempt == 0 {
+			attempt = task.Attempts
+		}
+		reason := strings.TrimSpace(fmt.Sprint(watchdog["reason"]))
+		if reason == "" || reason == "<nil>" {
+			reason = strings.TrimSpace(fmt.Sprint(task.Payload["reason"]))
+		}
+		if reason == "" || reason == "<nil>" {
+			reason = strings.TrimSpace(fmt.Sprint(task.Payload["retry_reason"]))
+		}
+		if reason == "" || reason == "<nil>" {
+			reason = "falha registrada pelo watchdog"
+		}
+		events = append(events, watchdogSnapshotEvent{
+			TaskID:     task.ID,
+			ContractID: task.ContractID,
+			Title:      task.Title,
+			Role:       task.Role,
+			Attempt:    attempt,
+			Limit:      limit,
+			Reason:     reason,
+			Status:     task.Status,
+			Blocked:    task.Status == database.StatusBlocked || boolFromMapValue(watchdog["blocked"]),
+			FailedAt:   strings.TrimSpace(fmt.Sprint(watchdog["failed_at"])),
+		})
+	}
+	sort.Slice(events, func(i, j int) bool {
+		if events[i].Blocked != events[j].Blocked {
+			return events[i].Blocked
+		}
+		if events[i].Attempt == events[j].Attempt {
+			return events[i].TaskID > events[j].TaskID
+		}
+		return events[i].Attempt > events[j].Attempt
+	})
+	return events
 }
 
 func buildFactorySeriesSummaries(tasks []database.Task) []factorySeriesSummary {
@@ -576,6 +942,29 @@ func intFromFactoryValue(value any) int {
 		_, _ = fmt.Sscanf(fmt.Sprint(value), "%d", &out)
 		return out
 	}
+}
+
+func boolFromMapValue(value any) bool {
+	switch typed := value.(type) {
+	case bool:
+		return typed
+	case string:
+		return strings.EqualFold(strings.TrimSpace(typed), "true")
+	default:
+		return false
+	}
+}
+
+func sortedKeys(values map[string]struct{}) []string {
+	if len(values) == 0 {
+		return nil
+	}
+	keys := make([]string, 0, len(values))
+	for key := range values {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
 }
 
 func (m *Manager) Plugins() (mcp.Registry, error) {
@@ -962,6 +1351,9 @@ func (m *Manager) managerLoop() {
 }
 
 func (m *Manager) scheduleReadyTasks() {
+	m.planningMu.Lock()
+	defer m.planningMu.Unlock()
+
 	if m.store.SystemBlocked() {
 		return
 	}
@@ -971,6 +1363,9 @@ func (m *Manager) scheduleReadyTasks() {
 		return
 	}
 	for _, task := range tasks {
+		if m.taskFactoryBatchBlocked(task) {
+			continue
+		}
 		if err := m.store.MarkRunning(task.ID); err != nil {
 			continue
 		}
@@ -982,6 +1377,22 @@ func (m *Manager) scheduleReadyTasks() {
 		}
 	}
 	m.bus.Publish("snapshot", m.Snapshot())
+}
+
+func (m *Manager) taskFactoryBatchBlocked(task database.Task) bool {
+	factory, ok := task.Payload["factory"].(map[string]any)
+	if !ok {
+		return false
+	}
+	batchID := strings.TrimSpace(fmt.Sprint(factory["batch_id"]))
+	if batchID == "" {
+		return false
+	}
+	batch, err := m.store.GetFactoryBatch(batchID)
+	if err != nil {
+		return false
+	}
+	return batch.Status == "paused" || batch.Status == "cancelled"
 }
 
 func (m *Manager) worker(workerID int) {

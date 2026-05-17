@@ -24,6 +24,24 @@ if (-not $resolvedPackageDir.StartsWith($rootPrefix)) {
   throw "packageDir fora do projeto: $resolvedPackageDir"
 }
 
+function Get-PackageChecksums([string]$PackageDir) {
+  $resolvedPackage = [System.IO.Path]::GetFullPath($PackageDir)
+  $prefix = $resolvedPackage.TrimEnd([System.IO.Path]::DirectorySeparatorChar) + [System.IO.Path]::DirectorySeparatorChar
+  $items = [ordered]@{}
+  Get-ChildItem -LiteralPath $resolvedPackage -Recurse -File |
+    Where-Object { $_.Name -ne "manifest.json" } |
+    Sort-Object FullName |
+    ForEach-Object {
+      $full = [System.IO.Path]::GetFullPath($_.FullName)
+      if (-not $full.StartsWith($prefix)) {
+        throw "arquivo fora do pacote: $full"
+      }
+      $relative = $full.Substring($prefix.Length).Replace('\', '/')
+      $items[$relative] = (Get-FileHash -Algorithm SHA256 -LiteralPath $full).Hash.ToLowerInvariant()
+    }
+  return $items
+}
+
 & (Join-Path $PSScriptRoot "build.ps1") -OutputDir $packageBuildRel -Version $Version -Commit $Commit | Write-Host
 
 if (Test-Path $packageDir) {
@@ -94,6 +112,7 @@ $manifest = [ordered]@{
   runtime_log = "logs/omni-bot-go.log"
   external_dependencies = @()
   packaged_assets = @("web", "plugins", "commands", "docs", "CHANGELOG.md", "knowledge/*.pack.json", "run.ps1")
+  checksums = Get-PackageChecksums $packageDir
 }
 $manifest | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $packageDir "manifest.json") -Encoding ASCII
 

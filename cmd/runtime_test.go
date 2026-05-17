@@ -171,6 +171,25 @@ func TestFactorySeriesCreatesSerialContracts(t *testing.T) {
 	if result.Mode != "factory-series" || result.Count != 2 || len(result.Contracts) != 2 || result.BatchID == "" {
 		t.Fatalf("factory result = %#v", result)
 	}
+	batches, err := store.ListFactoryBatches(10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(batches) != 1 || batches[0].BatchID != result.BatchID || batches[0].Total != 2 || batches[0].Status != "active" {
+		t.Fatalf("factory batches = %#v", batches)
+	}
+	items, err := store.ListAllFactoryItems(10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 2 {
+		t.Fatalf("factory items = %#v", items)
+	}
+	for _, item := range items {
+		if item.BatchID != result.BatchID || item.ContractID == 0 || item.Status != "created" {
+			t.Fatalf("factory item incompleto: %#v", item)
+		}
+	}
 	tasks, err := store.ListTasks()
 	if err != nil {
 		t.Fatal(err)
@@ -202,8 +221,197 @@ func TestFactorySeriesCreatesSerialContracts(t *testing.T) {
 	if !ok || len(factoryItems) != 1 || factoryItems[0].BatchID != result.BatchID || factoryItems[0].Contracts != 2 {
 		t.Fatalf("snapshot factory = %#v", snapshot["factory_series"])
 	}
+	snapshotBatches, ok := snapshot["factory_batches"].([]database.FactoryBatch)
+	if !ok || len(snapshotBatches) != 1 || snapshotBatches[0].BatchID != result.BatchID {
+		t.Fatalf("snapshot factory_batches = %#v", snapshot["factory_batches"])
+	}
+	snapshotItems, ok := snapshot["factory_items"].([]database.FactoryItem)
+	if !ok || len(snapshotItems) != 2 {
+		t.Fatalf("snapshot factory_items = %#v", snapshot["factory_items"])
+	}
+	contractSummaries, ok := snapshot["contract_summaries"].([]contractDashboardSummary)
+	if !ok || len(contractSummaries) != 2 {
+		t.Fatalf("snapshot contract_summaries = %#v", snapshot["contract_summaries"])
+	}
+	for _, item := range contractSummaries {
+		if item.Tasks == 0 || item.FactoryBatchID != result.BatchID || item.FactoryIndex == 0 || item.FactoryTotal != 2 {
+			t.Fatalf("contract summary incompleto: %#v", item)
+		}
+		if len(item.Domains) == 0 || len(item.Roles) == 0 {
+			t.Fatalf("contract summary sem dominio/papel: %#v", item)
+		}
+	}
+	edges, ok := snapshot["task_dependencies"].([]taskDependencyEdge)
+	if !ok || len(edges) == 0 {
+		t.Fatalf("snapshot task_dependencies = %#v", snapshot["task_dependencies"])
+	}
+	var foundCrossContract bool
+	for _, edge := range edges {
+		if edge.FromTaskID == firstFinal.ID && edge.ToTaskID == secondFirst.ID && edge.CrossContract {
+			foundCrossContract = true
+		}
+	}
+	if !foundCrossContract {
+		t.Fatalf("dependencia entre contratos nao exposta: %#v", edges)
+	}
 	if got := manager.applicationGoroutineBudget(); got != 5 {
 		t.Fatalf("factory must not add goroutines, got %d", got)
+	}
+}
+
+func TestFactoryBatchOperationalActions(t *testing.T) {
+	store, err := database.Open(filepath.Join(t.TempDir(), "loja.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	eng, err := engine.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	manager := NewManager(store, eng, knowledge.New(store), NewEventBus())
+	result, err := manager.CreateFactorySeries(FactorySeriesRequest{
+		Template: "Gerar documento tecnico para {{item}}",
+		Items:    []string{"Modulo A", "Modulo B"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.FactoryBatchAction(FactoryBatchActionRequest{BatchID: result.BatchID, Action: "pause", Reason: "janela operacional"}); err != nil {
+		t.Fatal(err)
+	}
+	batch, err := store.GetFactoryBatch(result.BatchID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if batch.Status != "paused" {
+		t.Fatalf("batch paused = %#v", batch)
+	}
+	if _, err := manager.FactoryBatchAction(FactoryBatchActionRequest{BatchID: result.BatchID, Action: "resume", Reason: "retomar"}); err != nil {
+		t.Fatal(err)
+	}
+	batch, _ = store.GetFactoryBatch(result.BatchID)
+	if batch.Status != "active" {
+		t.Fatalf("batch resumed = %#v", batch)
+	}
+	if _, err := manager.FactoryBatchAction(FactoryBatchActionRequest{BatchID: result.BatchID, Action: "skip", Index: 1, Reason: "fora do lote"}); err != nil {
+		t.Fatal(err)
+	}
+	item, err := store.GetFactoryItem(result.BatchID, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if item.Status != "skipped" {
+		t.Fatalf("skipped item = %#v", item)
+	}
+	if _, err := manager.FactoryBatchAction(FactoryBatchActionRequest{BatchID: result.BatchID, Action: "reprocess", Index: 2, Reason: "nova auditoria"}); err != nil {
+		t.Fatal(err)
+	}
+	item, _ = store.GetFactoryItem(result.BatchID, 2)
+	if item.Status != "reprocess_requested" {
+		t.Fatalf("reprocess item = %#v", item)
+	}
+	tasks, err := store.ListTasks()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var reauditFound bool
+	for _, task := range tasks {
+		if task.ContractID == result.Contracts[1].ID && task.Role == "Auditor Tecnico" && strings.Contains(task.Title, "Reexecutar auditoria") {
+			reauditFound = true
+		}
+	}
+	if !reauditFound {
+		t.Fatalf("reauditoria do item nao criada: %#v", tasks)
+	}
+	actionResult, err := manager.FactoryBatchAction(FactoryBatchActionRequest{BatchID: result.BatchID, Action: "cancel", Reason: "cancelamento de lote"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if actionResult["cancelled_tasks"] == nil {
+		t.Fatalf("cancel result = %#v", actionResult)
+	}
+	batch, _ = store.GetFactoryBatch(result.BatchID)
+	if batch.Status != "cancelled" {
+		t.Fatalf("batch cancelled = %#v", batch)
+	}
+}
+
+func TestFactorySeriesIdempotencyAndResumeState(t *testing.T) {
+	store, err := database.Open(filepath.Join(t.TempDir(), "loja.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	eng, err := engine.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	manager := NewManager(store, eng, knowledge.New(store), NewEventBus())
+	req := FactorySeriesRequest{
+		Template: "Gerar documento tecnico para {{item}}",
+		Items:    []string{"Modulo A", "Modulo B"},
+	}
+	first, err := manager.CreateFactorySeries(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	firstTasks, err := store.ListTasks()
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := manager.CreateFactorySeries(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if second.BatchID != first.BatchID || len(second.Contracts) != len(first.Contracts) {
+		t.Fatalf("idempotent result mismatch: first=%#v second=%#v", first, second)
+	}
+	contracts, err := store.ListContracts()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(contracts) != 2 {
+		t.Fatalf("repetir lote nao deve duplicar contratos: %#v", contracts)
+	}
+	tasks, err := store.ListTasks()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(tasks) != len(firstTasks) {
+		t.Fatalf("repetir lote nao deve duplicar tarefas: before=%d after=%d", len(firstTasks), len(tasks))
+	}
+	forced, err := manager.CreateFactorySeries(FactorySeriesRequest{
+		Template: "Gerar documento tecnico para {{item}}",
+		Items:    []string{"Modulo A", "Modulo B"},
+		ForceNew: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if forced.BatchID == first.BatchID || len(forced.Contracts) != 2 {
+		t.Fatalf("force_new deve criar lote separado: first=%#v forced=%#v", first, forced)
+	}
+	if _, err := manager.FactoryBatchAction(FactoryBatchActionRequest{BatchID: first.BatchID, Action: "pause", Reason: "teste de retomada"}); err != nil {
+		t.Fatal(err)
+	}
+	reloadedEngine, err := engine.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	reloaded := NewManager(store, reloadedEngine, knowledge.New(store), NewEventBus())
+	var pausedTask database.Task
+	for _, task := range tasks {
+		if task.ContractID == first.Contracts[0].ID {
+			pausedTask = task
+			break
+		}
+	}
+	if pausedTask.ID == 0 {
+		t.Fatalf("tarefa do lote pausado nao encontrada")
+	}
+	if !reloaded.taskFactoryBatchBlocked(pausedTask) {
+		t.Fatalf("manager reiniciado deve preservar bloqueio do lote pausado")
 	}
 }
 
@@ -262,6 +470,14 @@ func TestWatchdogFailurePublishesEventAndBlocksAfterThreeAttempts(t *testing.T) 
 	watchdog := blocked.Payload["watchdog"].(map[string]any)
 	if watchdog["reason"] != "erro controlado" || watchdog["blocked"] != true {
 		t.Fatalf("watchdog payload = %#v", watchdog)
+	}
+	snapshot := manager.Snapshot()
+	events, ok := snapshot["watchdog_events"].([]watchdogSnapshotEvent)
+	if !ok || len(events) != 1 {
+		t.Fatalf("snapshot watchdog_events = %#v", snapshot["watchdog_events"])
+	}
+	if events[0].TaskID != task.ID || !events[0].Blocked || events[0].Attempt != 3 || events[0].Reason != "erro controlado" {
+		t.Fatalf("watchdog snapshot = %#v", events[0])
 	}
 }
 
@@ -572,6 +788,21 @@ func TestAPIFactorySeriesAndKnowledgeCandidateActions(t *testing.T) {
 	if factory.BatchID == "" || factory.Count != 2 || len(factory.Contracts) != 2 {
 		t.Fatalf("factory = %#v", factory)
 	}
+	rec = httptest.NewRecorder()
+	actionBody := fmt.Sprintf(`{"batch_id":%q,"action":"pause","reason":"teste api"}`, factory.BatchID)
+	req = httptest.NewRequest(http.MethodPost, "/api/factory_batches/action", strings.NewReader(actionBody))
+	req.Header.Set("Content-Type", "application/json")
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("factory action status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	batch, err := store.GetFactoryBatch(factory.BatchID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if batch.Status != "paused" {
+		t.Fatalf("batch after api action = %#v", batch)
+	}
 
 	task, err := store.AddTaskWithPayload(factory.Contracts[0].ID, "Implementar codigo auditavel", "Desenvolvedor", nil, map[string]any{"domain": "code", "key": "code-implement"})
 	if err != nil {
@@ -766,6 +997,17 @@ func runtimeTestMux(manager *Manager, eng *engine.Engine, dbPath, pluginsDir, lo
 			return nil, http.StatusBadRequest, err
 		}
 		return result, http.StatusCreated, nil
+	}))
+	mux.HandleFunc("/api/factory_batches/action", jsonHandler(func(w http.ResponseWriter, r *http.Request) (any, int, error) {
+		var body FactoryBatchActionRequest
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			return nil, http.StatusBadRequest, err
+		}
+		result, err := manager.FactoryBatchAction(body)
+		if err != nil {
+			return nil, http.StatusBadRequest, err
+		}
+		return result, http.StatusOK, nil
 	}))
 	mux.HandleFunc("/api/knowledge_candidates", jsonHandler(func(w http.ResponseWriter, r *http.Request) (any, int, error) {
 		var body struct {

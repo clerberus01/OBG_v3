@@ -32,7 +32,7 @@ func (m *Manager) executeFileTask(task database.Task, validations []validationRe
 		return taskExecution{}, err
 	}
 	baseDir := filepath.Join("projects", fmt.Sprintf("contract-%d", task.ContractID))
-	if err := os.MkdirAll(baseDir, 0755); err != nil {
+	if err := os.MkdirAll(baseDir, 0700); err != nil {
 		return taskExecution{}, err
 	}
 	previous, err := m.previousReports(task)
@@ -106,9 +106,10 @@ func (m *Manager) writeSealedArtifact(task database.Task, baseDir, name string, 
 	if locked {
 		return fileArtifact{}, fmt.Errorf("artefato read-only ja existe: %s", path)
 	}
-	if err := os.WriteFile(path, data, 0444); err != nil {
+	if err := os.WriteFile(path, data, 0600); err != nil {
 		return fileArtifact{}, err
 	}
+	_ = os.Chmod(path, 0400)
 	sum := sha256.Sum256(data)
 	hash := hex.EncodeToString(sum[:])
 	if err := m.store.AddArtifact(task.ContractID, task.ID, path, hash); err != nil {

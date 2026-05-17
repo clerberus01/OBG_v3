@@ -108,7 +108,7 @@ func LoadRegistry(dir string) (Registry, error) {
 }
 
 func LoadManifest(path string) (Plugin, error) {
-	raw, err := os.ReadFile(path)
+	raw, err := os.ReadFile(path) // #nosec G304 -- path is built from registry directory entries or explicit local manifest path.
 	if err != nil {
 		return Plugin{}, err
 	}

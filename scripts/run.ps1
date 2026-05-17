@@ -11,6 +11,16 @@ $ErrorActionPreference = "Stop"
 
 $root = Resolve-Path (Join-Path $PSScriptRoot "..")
 
+function Resolve-GoCommand {
+  $preferred = Get-Command go1.26.3 -ErrorAction SilentlyContinue
+  if ($preferred) { return $preferred.Source }
+  $sideBySide = Join-Path $env:USERPROFILE "go\bin\go1.26.3.exe"
+  if (Test-Path -LiteralPath $sideBySide) { return $sideBySide }
+  $serviceDesk = "C:\Users\servicedesk.br\go\bin\go1.26.3.exe"
+  if (Test-Path -LiteralPath $serviceDesk) { return $serviceDesk }
+  return "go"
+}
+
 function Resolve-FromRoot([string]$Path) {
   if ([System.IO.Path]::IsPathRooted($Path)) {
     return $Path
@@ -33,6 +43,7 @@ New-Item -ItemType Directory -Force -Path $tmp | Out-Null
 $env:CGO_ENABLED = "0"
 $env:GOCACHE = $cache
 $env:GOTMPDIR = $tmp
+$go = Resolve-GoCommand
 if ($EnableGoValidation) {
   $env:OBG_ALLOW_GO_VALIDATION = "1"
 } else {
@@ -48,4 +59,4 @@ if ($Commands.Trim() -ne "") {
   $argsList += @("-commands", $commandsPath)
 }
 
-go run @argsList
+& $go run @argsList

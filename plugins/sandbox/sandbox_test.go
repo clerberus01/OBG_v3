@@ -63,6 +63,28 @@ func TestControlledGitSupport(t *testing.T) {
 	}
 }
 
+func TestMutableGitCommandsRemainBlockedForV200(t *testing.T) {
+	cases := []struct {
+		name    string
+		args    []string
+		allowed []string
+	}{
+		{name: "checkout", args: []string{"checkout", "main"}, allowed: []string{"git checkout"}},
+		{name: "commit", args: []string{"commit", "-m", "release"}, allowed: []string{"git commit"}},
+		{name: "push", args: []string{"push", "origin", "main"}, allowed: []string{"git push"}},
+		{name: "pull", args: []string{"pull"}, allowed: []string{"git pull"}},
+		{name: "reset", args: []string{"reset", "--hard"}, allowed: []string{"git reset"}},
+		{name: "clean", args: []string{"clean", "-fd"}, allowed: []string{"git clean"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if CommandAllowed("git", tc.args, Policy{AllowCommands: tc.allowed}, ".") {
+				t.Fatalf("expected mutable git command to remain blocked: git %s", strings.Join(tc.args, " "))
+			}
+		})
+	}
+}
+
 func TestControlledDockerPodmanSupport(t *testing.T) {
 	policy := Policy{AllowCommands: []string{"docker ps", "docker compose ps", "podman logs"}}
 	if !CommandAllowed("docker", []string{"ps", "--all"}, policy, ".") {
@@ -79,6 +101,28 @@ func TestControlledDockerPodmanSupport(t *testing.T) {
 	}
 	if CommandAllowed("docker", []string{"ps", "--host", "tcp://example:2375"}, Policy{AllowCommands: []string{"docker ps"}}, ".") {
 		t.Fatal("expected remote docker host flag to be blocked")
+	}
+}
+
+func TestMutableContainerCommandsRemainBlockedForV200(t *testing.T) {
+	cases := []struct {
+		command string
+		args    []string
+		allowed []string
+	}{
+		{command: "docker", args: []string{"run", "alpine"}, allowed: []string{"docker run"}},
+		{command: "docker", args: []string{"build", "."}, allowed: []string{"docker build"}},
+		{command: "docker", args: []string{"compose", "up"}, allowed: []string{"docker compose up"}},
+		{command: "docker", args: []string{"compose", "down"}, allowed: []string{"docker compose down"}},
+		{command: "podman", args: []string{"run", "alpine"}, allowed: []string{"podman run"}},
+		{command: "podman", args: []string{"build", "."}, allowed: []string{"podman build"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.command+"_"+strings.Join(tc.args, "_"), func(t *testing.T) {
+			if CommandAllowed(tc.command, tc.args, Policy{AllowCommands: tc.allowed}, ".") {
+				t.Fatalf("expected mutable container command to remain blocked: %s %s", tc.command, strings.Join(tc.args, " "))
+			}
+		})
 	}
 }
 

@@ -64,7 +64,7 @@ func (p *KnowledgePack) Save(dir string) error {
 	if strings.TrimSpace(p.Domain) == "" {
 		return fmt.Errorf("knowledge pack sem domain")
 	}
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0700); err != nil {
 		return err
 	}
 	data, err := json.MarshalIndent(p, "", "  ")
@@ -72,7 +72,7 @@ func (p *KnowledgePack) Save(dir string) error {
 		return err
 	}
 	path := filepath.Join(dir, fmt.Sprintf("%s.pack.json", p.Domain))
-	return os.WriteFile(path, data, 0644)
+	return os.WriteFile(path, data, 0600)
 }
 
 func RuleMapToPack(ruleMap RuleMap) *KnowledgePack {

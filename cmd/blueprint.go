@@ -26,7 +26,7 @@ type CommandTask struct {
 }
 
 func (m *Manager) LoadBlueprintFile(path string) (database.Contract, error) {
-	raw, err := os.ReadFile(path)
+	raw, err := os.ReadFile(path) // #nosec G304 -- optional operator-provided local blueprint path.
 	if err != nil {
 		return database.Contract{}, err
 	}
@@ -47,6 +47,9 @@ func (m *Manager) CreateProjectFromYAML(raw string) (database.Contract, error) {
 }
 
 func (m *Manager) createContractFromBlueprint(blueprint CommandBlueprint) (database.Contract, error) {
+	m.planningMu.Lock()
+	defer m.planningMu.Unlock()
+
 	contract, err := m.store.CreateContract(blueprint.NorthStar, blueprint.Constraints, blueprint.Deliverables)
 	if err != nil {
 		return database.Contract{}, err

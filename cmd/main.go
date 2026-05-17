@@ -2,8 +2,9 @@ package main
 
 import (
 	"bufio"
-	"crypto/sha1"
+	"crypto/sha1" // #nosec G505 -- WebSocket opening handshake requires SHA-1 by RFC 6455.
 	"encoding/base64"
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -15,6 +16,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"omni-bot-go/database"
 	"omni-bot-go/engine"
@@ -165,6 +167,20 @@ func main() {
 			return nil, http.StatusBadRequest, err
 		}
 		return result, http.StatusCreated, nil
+	}))
+	mux.HandleFunc("/api/factory_batches/action", jsonHandler(func(w http.ResponseWriter, r *http.Request) (any, int, error) {
+		if r.Method != http.MethodPost {
+			return nil, http.StatusMethodNotAllowed, fmt.Errorf("metodo nao permitido")
+		}
+		var body FactoryBatchActionRequest
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			return nil, http.StatusBadRequest, err
+		}
+		result, err := manager.FactoryBatchAction(body)
+		if err != nil {
+			return nil, http.StatusBadRequest, err
+		}
+		return result, http.StatusOK, nil
 	}))
 	mux.HandleFunc("/api/plugins", jsonHandler(func(w http.ResponseWriter, r *http.Request) (any, int, error) {
 		if r.Method != http.MethodGet {
@@ -448,8 +464,16 @@ func main() {
 		return task, http.StatusCreated, nil
 	}))
 
+	server := &http.Server{
+		Addr:              *addr,
+		Handler:           mux,
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       2 * time.Minute,
+	}
 	log.Printf("OBG %s (%s) dashboard em http://%s", version, commit, *addr)
-	log.Fatal(http.ListenAndServe(*addr, mux))
+	log.Fatal(server.ListenAndServe())
 }
 
 func buildInfo() map[string]string {
@@ -464,7 +488,7 @@ func buildInfo() map[string]string {
 func ensureRuntimeDirs(paths ...string) error {
 	required := []string{"data", "logs", "projects"}
 	for _, dir := range required {
-		if err := os.MkdirAll(dir, 0755); err != nil {
+		if err := os.MkdirAll(dir, 0700); err != nil {
 			return err
 		}
 	}
@@ -480,7 +504,7 @@ func ensureRuntimeDirs(paths ...string) error {
 		if dir == "." || dir == "" {
 			continue
 		}
-		if err := os.MkdirAll(dir, 0755); err != nil {
+		if err := os.MkdirAll(dir, 0700); err != nil {
 			return err
 		}
 	}
@@ -495,7 +519,7 @@ func initRuntimeLog(path string) (*os.File, error) {
 	if err := rotateRuntimeLog(path, 10*1024*1024, 3); err != nil {
 		return nil, err
 	}
-	file, err := os.OpenFile(filepath.Clean(path), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+	file, err := os.OpenFile(filepath.Clean(path), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0600)
 	if err != nil {
 		return nil, err
 	}
@@ -573,7 +597,7 @@ func serveIndex(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	path := filepath.Join("web", "index.html")
-	raw, err := os.ReadFile(path)
+	raw, err := os.ReadFile(path) // #nosec G304 -- dashboard path is a fixed local asset joined from constants.
 	if err != nil {
 		http.Error(w, "web/index.html nao encontrado", http.StatusInternalServerError)
 		return
@@ -649,6 +673,7 @@ func wsHandler(bus *EventBus, manager *Manager) http.HandlerFunc {
 }
 
 func websocketAccept(key string) string {
+	// #nosec G401 -- WebSocket opening handshake requires SHA-1 by RFC 6455; this is not used for password hashing or signatures.
 	sum := sha1.Sum([]byte(key + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"))
 	return base64.StdEncoding.EncodeToString(sum[:])
 }
@@ -661,9 +686,15 @@ func writeWebSocketText(conn net.Conn, payload []byte) error {
 	case n < 126:
 		header = append(header, byte(n))
 	case n <= 65535:
-		header = append(header, 126, byte(n>>8), byte(n))
+		var length [2]byte
+		binary.BigEndian.PutUint16(length[:], uint16(n))
+		header = append(header, 126)
+		header = append(header, length[:]...)
 	default:
-		header = append(header, 127, byte(n>>56), byte(n>>48), byte(n>>40), byte(n>>32), byte(n>>24), byte(n>>16), byte(n>>8), byte(n))
+		var length [8]byte
+		binary.BigEndian.PutUint64(length[:], uint64(n))
+		header = append(header, 127)
+		header = append(header, length[:]...)
 	}
 	if _, err := w.Write(header); err != nil {
 		return err

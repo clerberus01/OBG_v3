@@ -54,7 +54,7 @@ func Run(ctx context.Context, req Request, stdin string) (Result, error) {
 		return Result{}, err
 	}
 	start := time.Now()
-	cmd := exec.CommandContext(ctx, execution.Command, execution.Args...)
+	cmd := exec.CommandContext(ctx, execution.Command, execution.Args...) // #nosec G204 -- Prepare validates command, args, allowlist, permissions and workdir before execution.
 	cmd.Dir = execution.WorkDir
 	cmd.Env = execution.Env
 	cmd.Stdin = strings.NewReader(stdin)
@@ -236,7 +236,7 @@ func WorkDir(manifestPath, pluginID string, policy Policy) (string, error) {
 	if absWorkDir != absRoot && !strings.HasPrefix(absWorkDir, absRoot+string(os.PathSeparator)) {
 		return "", errors.New("sandbox.work_dir fora do diretorio controlado")
 	}
-	if err := os.MkdirAll(absWorkDir, 0755); err != nil {
+	if err := os.MkdirAll(absWorkDir, 0700); err != nil {
 		return "", err
 	}
 	return absWorkDir, nil

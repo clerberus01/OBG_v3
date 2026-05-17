@@ -107,6 +107,32 @@ type Interrogation struct {
 	UpdatedAt    time.Time         `json:"updated_at"`
 }
 
+type FactoryBatch struct {
+	ID           int64     `json:"id"`
+	BatchID      string    `json:"batch_id"`
+	Template     string    `json:"template"`
+	Items        []string  `json:"items"`
+	Constraints  string    `json:"constraints"`
+	Deliverables string    `json:"deliverables"`
+	Status       string    `json:"status"`
+	Total        int       `json:"total"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
+}
+
+type FactoryItem struct {
+	ID         int64     `json:"id"`
+	BatchID    string    `json:"batch_id"`
+	Index      int       `json:"index"`
+	Item       string    `json:"item"`
+	ContractID int64     `json:"contract_id"`
+	Status     string    `json:"status"`
+	StartedAt  time.Time `json:"started_at,omitempty"`
+	FinishedAt time.Time `json:"finished_at,omitempty"`
+	CreatedAt  time.Time `json:"created_at"`
+	UpdatedAt  time.Time `json:"updated_at"`
+}
+
 type Artifact struct {
 	ID         int64     `json:"id"`
 	ContractID int64     `json:"contract_id"`
@@ -289,6 +315,33 @@ func (s *Store) Migrate() error {
 			contract_id INTEGER NOT NULL DEFAULT 0,
 			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+		);`,
+		`CREATE TABLE IF NOT EXISTS factory_batches (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			batch_id TEXT NOT NULL UNIQUE,
+			template TEXT NOT NULL,
+			items TEXT NOT NULL DEFAULT '[]',
+			constraints TEXT NOT NULL,
+			deliverables TEXT NOT NULL,
+			status TEXT NOT NULL DEFAULT 'active',
+			total INTEGER NOT NULL,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+		);`,
+		`CREATE TABLE IF NOT EXISTS factory_items (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			batch_id TEXT NOT NULL,
+			item_index INTEGER NOT NULL,
+			item TEXT NOT NULL,
+			contract_id INTEGER NOT NULL DEFAULT 0,
+			status TEXT NOT NULL DEFAULT 'pending',
+			started_at DATETIME,
+			finished_at DATETIME,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			UNIQUE(batch_id, item_index),
+			FOREIGN KEY(batch_id) REFERENCES factory_batches(batch_id),
+			FOREIGN KEY(contract_id) REFERENCES contratos(id)
 		);`,
 		`CREATE TABLE IF NOT EXISTS artefatos (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -519,6 +572,174 @@ func (s *Store) SealInterrogation(id, contractID int64, answers map[string]strin
 		return Interrogation{}, errors.New("interrogatorio inexistente ou ja selado")
 	}
 	return s.GetInterrogation(id)
+}
+
+func (s *Store) UpsertFactoryBatch(batchID, template string, items []string, constraints, deliverables, status string) (FactoryBatch, error) {
+	if strings.TrimSpace(batchID) == "" {
+		return FactoryBatch{}, errors.New("batch_id vazio")
+	}
+	if strings.TrimSpace(status) == "" {
+		status = "active"
+	}
+	raw, _ := json.Marshal(items)
+	_, err := s.db.Exec(`INSERT INTO factory_batches(batch_id, template, items, constraints, deliverables, status, total)
+		VALUES(?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(batch_id) DO UPDATE SET
+			template = excluded.template,
+			items = excluded.items,
+			constraints = excluded.constraints,
+			deliverables = excluded.deliverables,
+			status = excluded.status,
+			total = excluded.total,
+			updated_at = CURRENT_TIMESTAMP`,
+		batchID, template, string(raw), constraints, deliverables, status, len(items))
+	if err != nil {
+		return FactoryBatch{}, err
+	}
+	return s.GetFactoryBatch(batchID)
+}
+
+func (s *Store) GetFactoryBatch(batchID string) (FactoryBatch, error) {
+	row := s.db.QueryRow(`SELECT id, batch_id, template, items, constraints, deliverables, status, total, created_at, updated_at FROM factory_batches WHERE batch_id = ?`, batchID)
+	return scanFactoryBatch(row)
+}
+
+func (s *Store) ListFactoryBatches(limit int) ([]FactoryBatch, error) {
+	if limit <= 0 || limit > 500 {
+		limit = 100
+	}
+	rows, err := s.db.Query(`SELECT id, batch_id, template, items, constraints, deliverables, status, total, created_at, updated_at FROM factory_batches ORDER BY updated_at DESC, id DESC LIMIT ?`, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []FactoryBatch
+	for rows.Next() {
+		item, err := scanFactoryBatch(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, item)
+	}
+	return out, rows.Err()
+}
+
+func (s *Store) SetFactoryBatchStatus(batchID, status string) (FactoryBatch, error) {
+	if strings.TrimSpace(batchID) == "" {
+		return FactoryBatch{}, errors.New("batch_id vazio")
+	}
+	if strings.TrimSpace(status) == "" {
+		return FactoryBatch{}, errors.New("status do lote vazio")
+	}
+	res, err := s.db.Exec(`UPDATE factory_batches SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE batch_id = ?`, status, batchID)
+	if err != nil {
+		return FactoryBatch{}, err
+	}
+	affected, _ := res.RowsAffected()
+	if affected == 0 {
+		return FactoryBatch{}, errors.New("lote da fabrica inexistente")
+	}
+	return s.GetFactoryBatch(batchID)
+}
+
+func (s *Store) UpsertFactoryItem(batchID string, index int, item string, contractID int64, status string) (FactoryItem, error) {
+	if strings.TrimSpace(batchID) == "" {
+		return FactoryItem{}, errors.New("batch_id vazio")
+	}
+	if index <= 0 {
+		return FactoryItem{}, errors.New("indice de item invalido")
+	}
+	if strings.TrimSpace(status) == "" {
+		status = "pending"
+	}
+	_, err := s.db.Exec(`INSERT INTO factory_items(batch_id, item_index, item, contract_id, status, started_at, finished_at)
+		VALUES(?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CASE WHEN ? IN ('created', 'approved', 'blocked', 'cancelled', 'skipped') THEN CURRENT_TIMESTAMP ELSE NULL END)
+		ON CONFLICT(batch_id, item_index) DO UPDATE SET
+			item = excluded.item,
+			contract_id = excluded.contract_id,
+			status = excluded.status,
+			started_at = COALESCE(factory_items.started_at, excluded.started_at),
+			finished_at = CASE WHEN excluded.status IN ('created', 'approved', 'blocked', 'cancelled', 'skipped') THEN CURRENT_TIMESTAMP ELSE factory_items.finished_at END,
+			updated_at = CURRENT_TIMESTAMP`,
+		batchID, index, item, contractID, status, status)
+	if err != nil {
+		return FactoryItem{}, err
+	}
+	return s.GetFactoryItem(batchID, index)
+}
+
+func (s *Store) SetFactoryItemStatus(batchID string, index int, status string) (FactoryItem, error) {
+	if strings.TrimSpace(batchID) == "" {
+		return FactoryItem{}, errors.New("batch_id vazio")
+	}
+	if index <= 0 {
+		return FactoryItem{}, errors.New("indice de item invalido")
+	}
+	if strings.TrimSpace(status) == "" {
+		return FactoryItem{}, errors.New("status do item vazio")
+	}
+	res, err := s.db.Exec(`UPDATE factory_items SET status = ?, finished_at = CASE WHEN ? IN ('approved', 'blocked', 'cancelled', 'skipped') THEN CURRENT_TIMESTAMP ELSE finished_at END, updated_at = CURRENT_TIMESTAMP WHERE batch_id = ? AND item_index = ?`,
+		status, status, batchID, index)
+	if err != nil {
+		return FactoryItem{}, err
+	}
+	affected, _ := res.RowsAffected()
+	if affected == 0 {
+		return FactoryItem{}, errors.New("item da fabrica inexistente")
+	}
+	return s.GetFactoryItem(batchID, index)
+}
+
+func (s *Store) GetFactoryItem(batchID string, index int) (FactoryItem, error) {
+	row := s.db.QueryRow(`SELECT id, batch_id, item_index, item, contract_id, status, started_at, finished_at, created_at, updated_at FROM factory_items WHERE batch_id = ? AND item_index = ?`, batchID, index)
+	return scanFactoryItem(row)
+}
+
+func (s *Store) ListFactoryItems(batchID string) ([]FactoryItem, error) {
+	rows, err := s.db.Query(`SELECT id, batch_id, item_index, item, contract_id, status, started_at, finished_at, created_at, updated_at FROM factory_items WHERE batch_id = ? ORDER BY item_index`, batchID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []FactoryItem
+	for rows.Next() {
+		item, err := scanFactoryItem(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, item)
+	}
+	return out, rows.Err()
+}
+
+func (s *Store) ListAllFactoryItems(limit int) ([]FactoryItem, error) {
+	if limit <= 0 || limit > 1000 {
+		limit = 500
+	}
+	rows, err := s.db.Query(`SELECT id, batch_id, item_index, item, contract_id, status, started_at, finished_at, created_at, updated_at FROM factory_items ORDER BY updated_at DESC, id DESC LIMIT ?`, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []FactoryItem
+	for rows.Next() {
+		item, err := scanFactoryItem(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, item)
+	}
+	return out, rows.Err()
+}
+
+func (s *Store) CancelFactoryItemTasks(contractID int64, reason string) (int64, error) {
+	payload := fmt.Sprintf(`{"cancel_reason":%q}`, reason)
+	res, err := s.db.Exec(`UPDATE tarefas SET status = ?, payload = ?, updated_at = CURRENT_TIMESTAMP WHERE contract_id = ? AND read_only = 0 AND status NOT IN (?, ?)`,
+		StatusCancelled, payload, contractID, StatusApproved, StatusCancelled)
+	if err != nil {
+		return 0, err
+	}
+	return res.RowsAffected()
 }
 
 func (s *Store) GetContract(id int64) (Contract, error) {
@@ -1259,6 +1480,34 @@ func scanInterrogation(scanner taskScanner) (Interrogation, error) {
 	}
 	if item.Answers == nil {
 		item.Answers = map[string]string{}
+	}
+	return item, nil
+}
+
+func scanFactoryBatch(scanner taskScanner) (FactoryBatch, error) {
+	var item FactoryBatch
+	var itemsRaw string
+	if err := scanner.Scan(&item.ID, &item.BatchID, &item.Template, &itemsRaw, &item.Constraints, &item.Deliverables, &item.Status, &item.Total, &item.CreatedAt, &item.UpdatedAt); err != nil {
+		return FactoryBatch{}, err
+	}
+	_ = json.Unmarshal([]byte(itemsRaw), &item.Items)
+	if item.Items == nil {
+		item.Items = []string{}
+	}
+	return item, nil
+}
+
+func scanFactoryItem(scanner taskScanner) (FactoryItem, error) {
+	var item FactoryItem
+	var startedAt, finishedAt sql.NullTime
+	if err := scanner.Scan(&item.ID, &item.BatchID, &item.Index, &item.Item, &item.ContractID, &item.Status, &startedAt, &finishedAt, &item.CreatedAt, &item.UpdatedAt); err != nil {
+		return FactoryItem{}, err
+	}
+	if startedAt.Valid {
+		item.StartedAt = startedAt.Time
+	}
+	if finishedAt.Valid {
+		item.FinishedAt = finishedAt.Time
 	}
 	return item, nil
 }

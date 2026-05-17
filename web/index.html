@@ -52,6 +52,8 @@
       padding: 0 12px;
       cursor: pointer;
       font-weight: 650;
+      min-width: 0;
+      overflow-wrap: anywhere;
     }
     button:hover { border-color: var(--muted); }
     button.primary { background: var(--accent); color: #07130d; border-color: var(--accent); }
@@ -93,6 +95,29 @@
     .question-list { display: grid; gap: 10px; margin-top: 14px; }
     .question-list label { display: grid; gap: 6px; color: var(--muted); font-size: 12px; }
     .question-list input { width: 100%; height: 36px; padding: 0 10px; background: #0f1113; }
+    .interrogation-progress {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 6px;
+      margin: 8px 0;
+    }
+    .interrogation-progress .step {
+      min-height: 44px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 7px;
+      background: #101417;
+    }
+    .interrogation-progress .step strong { display: block; font-size: 12px; }
+    .interrogation-progress .step span { color: var(--muted); font-size: 11px; }
+    .seal-warning {
+      border: 1px solid rgba(232, 180, 85, .45);
+      background: rgba(232, 180, 85, .08);
+      border-radius: 6px;
+      padding: 8px;
+      color: #f0d393;
+      font-size: 12px;
+    }
     .question-index {
       display: inline-flex;
       align-items: center;
@@ -117,6 +142,12 @@
     }
     .contract-draft textarea { min-height: 86px; }
     .contract-draft label { display: grid; gap: 5px; color: var(--muted); font-size: 12px; }
+    .contract-review-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+    }
+    .contract-review-grid .audit-row { min-height: 74px; }
     .field-list { display: grid; gap: 8px; }
     .field-list label { display: grid; gap: 5px; color: var(--muted); font-size: 12px; }
     .field-list input { width: 100%; height: 34px; padding: 0 10px; background: #0f1113; }
@@ -160,6 +191,27 @@
       border: 1px solid var(--line);
       border-radius: 6px;
       background: #101417;
+    }
+    .audit-toolbar {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+    .audit-toolbar label {
+      display: grid;
+      gap: 4px;
+      color: var(--muted);
+      font-size: 11px;
+    }
+    .audit-toolbar input, .audit-toolbar select {
+      width: 100%;
+      height: 32px;
+      padding: 0 9px;
+      background: #0f1113;
+      border-radius: 6px;
+      border: 1px solid var(--line);
+      color: var(--text);
     }
     .log-row {
       border-left: 3px solid var(--line);
@@ -241,6 +293,28 @@
       gap: 6px;
       margin-top: 6px;
     }
+    .progress-track {
+      height: 8px;
+      display: flex;
+      overflow: hidden;
+      border-radius: 999px;
+      background: #0f1113;
+      border: 1px solid var(--line);
+      margin-top: 8px;
+    }
+    .progress-track span { min-width: 0; }
+    .progress-track .done { background: var(--accent); }
+    .progress-track .run { background: var(--info); }
+    .progress-track .warn { background: var(--warn); }
+    .progress-track .block { background: var(--danger); }
+    .contract-context {
+      display: grid;
+      gap: 7px;
+      padding: 8px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #101417;
+    }
     .dependency-line {
       display: flex;
       align-items: center;
@@ -248,9 +322,41 @@
       flex-wrap: wrap;
       margin-top: 6px;
     }
+    .dependency-map {
+      display: grid;
+      gap: 6px;
+      padding: 8px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #101417;
+    }
+    .dependency-edge {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 24px minmax(0, 1fr);
+      gap: 6px;
+      align-items: center;
+      min-width: 0;
+    }
+    .dependency-edge .task-mini {
+      min-width: 0;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 6px;
+      background: #0f1113;
+    }
+    .task-mini strong {
+      display: block;
+      overflow-wrap: anywhere;
+      font-size: 12px;
+    }
+    .task-mini button {
+      width: 100%;
+      margin-top: 5px;
+    }
     .dependency-arrow {
       color: var(--muted);
       font-weight: 700;
+      text-align: center;
     }
     .watchdog-line {
       display: grid;
@@ -301,7 +407,16 @@
       font: 12px/1.45 ui-monospace, SFMono-Regular, Consolas, monospace;
     }
     .tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
-    .tabs .tab { flex: 1 1 auto; min-width: max-content; }
+    .tabs .tab {
+      flex: 1 1 96px;
+      min-width: 0;
+      height: auto;
+      min-height: 36px;
+      padding-top: 6px;
+      padding-bottom: 6px;
+      line-height: 1.15;
+      white-space: normal;
+    }
     .tab.active { border-color: var(--accent); color: var(--accent); }
     .mode.active { border-color: var(--info); color: var(--info); }
     .filter.active { border-color: var(--accent); color: var(--accent); }
@@ -319,6 +434,7 @@
       .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .audit-grid { grid-template-columns: 1fr; }
+      .audit-toolbar { grid-template-columns: 1fr; }
     }
     @media (max-width: 560px) {
       header {
@@ -331,8 +447,12 @@
       }
       section { padding: 12px; }
       .toolbar button, .inline-actions button, .actions button { flex: 1 1 140px; }
+      .tabs .tab { flex-basis: 120px; }
+      button { height: auto; min-height: 36px; padding-top: 6px; padding-bottom: 6px; line-height: 1.15; }
       .metrics, .grid { grid-template-columns: 1fr; }
       .task-line { grid-template-columns: 38px minmax(0, 1fr); }
+      .dependency-edge { grid-template-columns: 1fr; }
+      .interrogation-progress, .contract-review-grid { grid-template-columns: 1fr; }
       .plugin-history { grid-template-columns: 1fr; }
       .split-actions { grid-template-columns: 1fr; }
       .card-head {
@@ -362,6 +482,9 @@
       <textarea id="input" placeholder="Descreva o projeto que o Gerente deve contratar, dividir e auditar."></textarea>
       <textarea id="yamlInput" class="compact hidden" placeholder="Cole um YAML operacional com north_star, constraints, deliverables e tasks."></textarea>
       <textarea id="factoryItems" class="compact hidden" placeholder="Um item por linha. Use {{item}}, {{index}}, {{total}} e {{batch}} no texto do contrato acima."></textarea>
+      <label id="factoryForceWrap" class="meta hidden" style="display:none;margin-top:8px">
+        <input id="factoryForceNew" type="checkbox" style="width:auto;height:auto;margin-right:6px"> Criar novo lote mesmo se ja existir
+      </label>
       <div class="actions">
         <button class="primary" id="send">Interrogar</button>
         <button class="ghost" id="legacy">Criar direto</button>
@@ -376,6 +499,7 @@
     <section>
       <div class="section-head"><h2>Quadro de Obras</h2></div>
       <div id="agents" class="grid"></div>
+      <div id="factory_panel"></div>
       <div class="toolbar">
         <button class="filter active" data-filter="all">Todas</button>
         <button class="filter" data-filter="active">Ativas</button>
@@ -391,6 +515,7 @@
         <button class="tab active" data-tab="engine">Engine</button>
         <button class="tab" data-tab="sealed">Selados</button>
         <button class="tab" data-tab="handoffs">Handoffs</button>
+        <button class="tab" data-tab="factory">Fabrica</button>
         <button class="tab" data-tab="plugins">Plugins</button>
         <button class="tab" data-tab="knowledge_packs">Knowledge Packs</button>
         <button class="tab" data-tab="audit_metrics">Métricas</button>
@@ -399,6 +524,7 @@
       <div id="engine"></div>
       <div id="sealed" class="hidden"></div>
       <div id="handoffs" class="hidden"></div>
+      <div id="factory" class="hidden"></div>
       <div id="plugins" class="hidden"></div>
       <div id="knowledge_packs" class="hidden"></div>
       <div id="audit_metrics" class="hidden"></div>
@@ -406,13 +532,20 @@
     </section>
   </main>
   <script>
-    let snapshot = { engine: null, interrogations: [], contracts: [], tasks: [], artifacts: [], handoffs: [], plugins: [], plugin_calls: [], plugin_command_registry: [], plugin_permission_scopes: [], knowledge_packs: [], knowledge_candidates: [], factory_series: [], agents: [], logs: [], assertiveness: null, blocked: false };
+    let snapshot = { engine: null, interrogations: [], contracts: [], contract_summaries: [], tasks: [], task_dependencies: [], watchdog_events: [], artifacts: [], handoffs: [], plugins: [], plugin_calls: [], plugin_command_registry: [], plugin_permission_scopes: [], knowledge_packs: [], knowledge_candidates: [], factory_series: [], factory_batches: [], factory_items: [], agents: [], logs: [], assertiveness: null, blocked: false };
     let taskFilter = 'all';
     let inputMode = 'interrogate';
     let knowledgePackResults = [];
     let knowledgePackNotice = '';
     let latestWatchdog = null;
     let interrogationDrafts = {};
+    let auditSearch = '';
+    let artifactContractFilter = 'all';
+    let handoffContractFilter = 'all';
+    let factoryBatchFilter = 'all';
+    let knowledgeCandidateFilter = 'pending';
+    let logLevelFilter = 'all';
+    let logScopeFilter = 'all';
     const $ = (id) => document.getElementById(id);
     const escapeHtml = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
     const statusClass = (s) => s === 'Aprovado' ? 'done' : s === 'Em Execucao' ? 'run' : (s === 'Bloqueado' || s === 'Cancelado' || s === 'Reprovado') ? 'block' : '';
@@ -445,6 +578,8 @@
             <button class="ghost" data-reaudit="${c.id}">Reauditar</button>
           </div>
         </article>`).join('') || '<div class="empty">Nenhum contrato selado.</div>';
+      $('interrogations').innerHTML = interrogationListView(snapshot.interrogations || []);
+      $('contracts').innerHTML = recentContractsView(snapshot.contracts || [], snapshot.contract_summaries || []);
       $('agents').innerHTML = (snapshot.agents || []).map(a => `
         <article class="agent">
           <strong>Bot ${a.worker_id}</strong>
@@ -452,17 +587,19 @@
           <div class="meta">${escapeHtml(a.role || 'dormindo')}</div>
           <div class="meta">tarefa ${a.task_id || '-'}</div>
         </article>`).join('');
+      $('factory_panel').innerHTML = factoryOperationsView(snapshot.factory_batches || [], snapshot.factory_items || [], snapshot.factory_series || [], true);
       const visibleTasks = filteredTasks();
-      $('watchdog').innerHTML = watchdogView(latestWatchdog, snapshot.tasks || []);
-      $('tasks').innerHTML = taskBoardView(visibleTasks, snapshot.contracts || [], snapshot.tasks || []);
+      $('watchdog').innerHTML = watchdogViewV2(latestWatchdog, snapshot.tasks || [], snapshot.watchdog_events || []);
+      $('tasks').innerHTML = taskBoardView(visibleTasks, snapshot.contracts || [], snapshot.tasks || [], snapshot.contract_summaries || [], snapshot.task_dependencies || []);
       const sealed = snapshot.tasks.filter(t => t.read_only);
       $('engine').innerHTML = engineView(snapshot.engine);
       $('sealed').innerHTML = artifactAuditView(snapshot.artifacts || [], sealed);
-      $('handoffs').innerHTML = handoffView(snapshot.handoffs || []);
+      $('handoffs').innerHTML = handoffViewV2(snapshot.handoffs || []);
+      $('factory').innerHTML = factoryOperationsView(snapshot.factory_batches || [], snapshot.factory_items || [], snapshot.factory_series || [], false);
       $('plugins').innerHTML = pluginView(snapshot.plugins || [], snapshot.plugin_calls || [], snapshot.plugin_command_registry || [], snapshot.plugin_permission_scopes || []);
       $('knowledge_packs').innerHTML = knowledgePackView(snapshot.knowledge_packs || [], snapshot.knowledge_candidates || []);
       $('audit_metrics').innerHTML = auditMetricsView(snapshot);
-      $('logs').innerHTML = logsView(snapshot.logs || []);
+      $('logs').innerHTML = logsViewV2(snapshot.logs || []);
     }
 
     function metricView() {
@@ -481,6 +618,76 @@
         ['Tempo medio', formatSeconds(assertiveness.average_seconds || 0)],
       ].map(([label, value]) => `<div class="metric"><strong>${value}</strong><span>${label}</span></div>`).join('') +
         assertivenessView(assertiveness);
+    }
+
+    function interrogationListView(items) {
+      if (!items.length) return '<div class="empty">Nenhuma entrevista de contrato aberta.</div>';
+      return items.map(session => {
+        const sealed = session.status === 'Contrato Selado';
+        const answered = Object.values(session.answers || {}).filter(Boolean).length;
+        const total = (session.questions || []).length;
+        return `
+          <article class="card" data-interrogation="${session.id}">
+            <div class="card-head">
+              <div>
+                <h3>Balcao #${escapeHtml(session.id)}</h3>
+                <div class="meta">${escapeHtml(session.input)}</div>
+              </div>
+              <span class="pill ${sealed ? 'done' : 'run'}">${escapeHtml(session.status)}</span>
+            </div>
+            <div class="interrogation-progress">
+              <div class="step">
+                <strong>1. Perguntas</strong>
+                <span>${escapeHtml(answered)}/${escapeHtml(total)} respondidas</span>
+              </div>
+              <div class="step">
+                <strong>2. Revisao</strong>
+                <span>${interrogationDrafts[session.id] ? 'contrato preliminar gerado' : 'aguardando previa'}</span>
+              </div>
+              <div class="step">
+                <strong>3. Selo</strong>
+                <span>${sealed ? `contrato #${escapeHtml(session.contract_id)}` : 'imutavel apos selar'}</span>
+              </div>
+            </div>
+            ${sealed ? `<div class="seal-warning">Contrato selado e imutavel. Novas mudancas devem virar novo contrato ou reauditoria.</div>` : questionFormV2(session)}
+          </article>`;
+      }).join('');
+    }
+
+    function recentContractsView(contracts, summaries) {
+      if (!contracts.length) return '<div class="empty">Nenhum contrato selado.</div>';
+      const summaryMap = new Map((summaries || []).map(s => [Number(s.contract_id), s]));
+      return contracts.slice(0, 8).map(contract => {
+        const summary = summaryMap.get(Number(contract.id));
+        return `
+          <article class="card">
+            <div class="card-head">
+              <div>
+                <h3>Contrato #${escapeHtml(contract.id)}</h3>
+                <div class="meta">hash ${escapeHtml(shortHash(contract.hash))}</div>
+              </div>
+              <span class="pill done">selado</span>
+            </div>
+            <div>${escapeHtml(contract.north_star)}</div>
+            <div class="contract-summary">
+              <span class="pill">${escapeHtml(summary?.tasks || 0)} tarefas</span>
+              <span class="pill done">${escapeHtml(summary?.approved || 0)} aprovadas</span>
+              <span class="pill block">${escapeHtml(summary?.blocked || 0)} bloqueadas</span>
+              ${(summary?.domains || []).slice(0, 3).map(domain => `<span class="pill">${escapeHtml(domain)}</span>`).join('')}
+            </div>
+            <div class="meta">restricoes: ${escapeHtml(contract.constraints || '-')}</div>
+            <div class="meta">entregaveis: ${escapeHtml(contract.deliverables || '-')}</div>
+            <div class="inline-actions">
+              <button class="ghost" data-reaudit="${contract.id}">Reauditar</button>
+            </div>
+          </article>`;
+      }).join('');
+    }
+
+    function shortHash(value) {
+      const text = String(value || '');
+      if (text.length <= 16) return text;
+      return `${text.slice(0, 12)}...${text.slice(-6)}`;
     }
 
     function assertivenessView(metrics) {
@@ -536,9 +743,111 @@
       return `${source}${command}${factory}${reason ? `<div class="meta">${escapeHtml(reason)}</div>` : ''}`;
     }
 
-    function taskBoardView(tasks, contracts, allTasks) {
+    function factoryOperationsView(batches, items, summaries, compact) {
+      if (!batches.length) return compact ? '' : '<div class="empty">Nenhum lote da Fabrica em Serie registrado.</div>';
+      const summaryMap = new Map((summaries || []).map(item => [String(item.batch_id), item]));
+      const visible = batches.filter(batch => factoryBatchFilter === 'all' || batch.batch_id === factoryBatchFilter);
+      const filters = compact ? '' : `
+        <div class="audit-toolbar">
+          <label>Lote
+            <select data-audit-control="factory-batch">
+              <option value="all" ${factoryBatchFilter === 'all' ? 'selected' : ''}>all</option>
+              ${batches.map(batch => `<option value="${escapeHtml(batch.batch_id)}" ${factoryBatchFilter === batch.batch_id ? 'selected' : ''}>${escapeHtml(batch.batch_id)}</option>`).join('')}
+            </select>
+          </label>
+          <label>Busca
+            <input data-audit-control="search" value="${escapeHtml(auditSearch)}" placeholder="lote, item, status">
+          </label>
+        </div>`;
+      return `
+        <article class="card" style="${compact ? 'margin-bottom:10px' : ''}">
+          <div class="card-head">
+            <h3>Fabrica em Serie</h3>
+            <span class="pill">${escapeHtml(visible.length)}/${escapeHtml(batches.length)} lote(s)</span>
+          </div>
+          ${filters}
+          <div class="list">
+            ${visible.map(batch => factoryBatchCard(batch, items.filter(item => item.batch_id === batch.batch_id), summaryMap.get(String(batch.batch_id)), compact)).join('')}
+          </div>
+        </article>`;
+    }
+
+    function factoryBatchCard(batch, items, summary, compact) {
+      const total = Number(batch.total || summary?.total || items.length || 1);
+      const approved = Number(summary?.approved || 0);
+      const blocked = Number(summary?.blocked || 0);
+      const created = items.filter(item => ['created', 'reprocess_requested'].includes(item.status)).length;
+      const skipped = items.filter(item => item.status === 'skipped').length;
+      const cancelled = items.filter(item => item.status === 'cancelled').length;
+      const done = approved + skipped + cancelled;
+      const title = `${batch.batch_id} · ${batch.status}`;
+      if (!matchesAuditSearch([title, batch.template, batch.status, JSON.stringify(items)])) return '';
+      return `
+        <div class="audit-row">
+          <div class="card-head">
+            <div>
+              <h3>${escapeHtml(batch.batch_id)}</h3>
+              <div class="meta">${escapeHtml(batch.template || '')}</div>
+            </div>
+            <span class="pill ${factoryStatusClass(batch.status)}">${escapeHtml(batch.status)}</span>
+          </div>
+          <div class="contract-summary">
+            <span class="pill">${escapeHtml(total)} itens</span>
+            <span class="pill">${escapeHtml(summary?.contracts || items.filter(i => i.contract_id).length)} contratos</span>
+            <span class="pill done">${escapeHtml(approved)} aprovadas</span>
+            <span class="pill warn">${escapeHtml(created)} criadas</span>
+            <span class="pill block">${escapeHtml(blocked + cancelled)} bloqueadas/canceladas</span>
+          </div>
+          <div class="progress-track" aria-label="progresso do lote">
+            <span class="done" style="width:${progressWidth(done, total)}%"></span>
+            <span class="warn" style="width:${progressWidth(Math.max(0, total - done - blocked), total)}%"></span>
+            <span class="block" style="width:${progressWidth(blocked + cancelled, total)}%"></span>
+          </div>
+          ${factoryBatchActions(batch)}
+          ${compact ? '' : factoryItemsView(batch, items)}
+        </div>`;
+    }
+
+    function factoryStatusClass(status) {
+      return status === 'active' ? 'run' : status === 'paused' ? 'warn' : status === 'cancelled' ? 'block' : 'done';
+    }
+
+    function factoryBatchActions(batch) {
+      const paused = batch.status === 'paused';
+      const cancelled = batch.status === 'cancelled';
+      return `
+        <div class="inline-actions">
+          ${paused ? `<button class="primary" data-factory-action="resume" data-batch="${escapeHtml(batch.batch_id)}">Retomar</button>` : ''}
+          ${(!paused && !cancelled) ? `<button class="ghost" data-factory-action="pause" data-batch="${escapeHtml(batch.batch_id)}">Pausar</button>` : ''}
+          ${!cancelled ? `<button class="danger" data-factory-action="cancel" data-batch="${escapeHtml(batch.batch_id)}">Cancelar lote</button>` : ''}
+        </div>`;
+    }
+
+    function factoryItemsView(batch, items) {
+      if (!items.length) return '<div class="empty">Nenhum item persistido para este lote.</div>';
+      return `
+        <div class="dependency-map">
+          ${items.sort((a, b) => Number(a.index) - Number(b.index)).map(item => `
+            <div class="dependency-edge">
+              <div class="task-mini">
+                <strong>${escapeHtml(item.index)}. ${escapeHtml(item.item)}</strong>
+                <span class="pill ${factoryStatusClass(item.status)}">${escapeHtml(item.status)}</span>
+                ${item.contract_id ? `<span class="pill">contrato ${escapeHtml(item.contract_id)}</span>` : ''}
+              </div>
+              <span class="dependency-arrow">-></span>
+              <div class="task-mini">
+                <strong>Acoes</strong>
+                <button class="ghost" data-factory-action="reprocess" data-batch="${escapeHtml(batch.batch_id)}" data-index="${escapeHtml(item.index)}">Reprocessar</button>
+                <button class="ghost" data-factory-action="skip" data-batch="${escapeHtml(batch.batch_id)}" data-index="${escapeHtml(item.index)}">Pular</button>
+              </div>
+            </div>`).join('')}
+        </div>`;
+    }
+
+    function taskBoardView(tasks, contracts, allTasks, summaries, dependencyEdges) {
       if (!tasks.length) return '<div class="empty">Nenhuma tarefa neste filtro.</div>';
       const contractMap = new Map((contracts || []).map(c => [Number(c.id), c]));
+      const summaryMap = new Map((summaries || []).map(s => [Number(s.contract_id), s]));
       const groups = new Map();
       tasks.forEach(task => {
         const key = Number(task.contract_id || 0);
@@ -547,6 +856,8 @@
       });
       return Array.from(groups.entries()).map(([contractID, items]) => {
         const contract = contractMap.get(contractID);
+        const summary = summaryMap.get(contractID);
+        const contractEdges = (dependencyEdges || []).filter(edge => Number(edge.contract_id) === contractID || items.some(task => Number(task.id) === Number(edge.to_task_id)));
         return `
           <article class="card contract-board">
             <div class="card-head">
@@ -554,9 +865,11 @@
                 <h3>Contrato #${escapeHtml(contractID || '-')}</h3>
                 <div class="meta">${escapeHtml(contract ? contract.north_star : 'contrato nao encontrado')}</div>
               </div>
-              <span class="pill">${escapeHtml(items.length)} tarefa(s)</span>
+              <span class="pill">${escapeHtml(summary?.tasks || items.length)} tarefa(s)</span>
             </div>
-            ${contractProgress(items)}
+            ${contractContextView(summary)}
+            ${contractProgressV2(summary, items)}
+            ${dependencyMapView(contractEdges, allTasks)}
             ${items.map(task => taskCard(task, allTasks)).join('')}
           </article>`;
       }).join('');
@@ -574,6 +887,85 @@
           <span class="pill run">${running} em execução</span>
           <span class="pill warn">${pending} aguardando</span>
           <span class="pill block">${blocked} bloqueadas</span>
+        </div>`;
+    }
+
+    function contractContextView(summary) {
+      if (!summary) return '';
+      const domains = (summary.domains || []).map(x => `<span class="pill">${escapeHtml(x)}</span>`).join('');
+      const roles = (summary.roles || []).map(x => `<span class="pill">${escapeHtml(x)}</span>`).join('');
+      const factory = summary.factory_batch_id ? `
+        <div class="dependency-line">
+          <span class="pill done">lote ${escapeHtml(summary.factory_batch_id)}</span>
+          <span class="pill">item ${escapeHtml(summary.factory_index)}/${escapeHtml(summary.factory_total)}</span>
+        </div>` : '';
+      if (!domains && !roles && !factory) return '';
+      return `
+        <div class="contract-context">
+          ${domains ? `<div class="dependency-line"><span class="meta">dominios</span>${domains}</div>` : ''}
+          ${roles ? `<div class="dependency-line"><span class="meta">papeis</span>${roles}</div>` : ''}
+          ${factory}
+        </div>`;
+    }
+
+    function contractProgressV2(summary, tasks) {
+      const total = Math.max(1, Number(summary?.tasks || tasks.length || 1));
+      const approved = Number(summary?.approved ?? tasks.filter(t => t.status === 'Aprovado').length);
+      const running = Number(summary?.running ?? tasks.filter(t => t.status === 'Em Execucao').length);
+      const blocked = Number(summary?.blocked ?? tasks.filter(t => ['Bloqueado', 'Reprovado', 'Cancelado'].includes(t.status)).length);
+      const pending = Number(summary?.pending ?? (tasks.length - approved - running - blocked));
+      return `
+        <div class="contract-summary">
+          <span class="pill done">${approved}/${total} aprovadas</span>
+          <span class="pill run">${running} em execucao</span>
+          <span class="pill warn">${pending} aguardando</span>
+          <span class="pill block">${blocked} bloqueadas</span>
+        </div>
+        <div class="progress-track" aria-label="progresso do contrato">
+          <span class="done" style="width:${progressWidth(approved, total)}%"></span>
+          <span class="run" style="width:${progressWidth(running, total)}%"></span>
+          <span class="warn" style="width:${progressWidth(pending, total)}%"></span>
+          <span class="block" style="width:${progressWidth(blocked, total)}%"></span>
+        </div>`;
+    }
+
+    function progressWidth(value, total) {
+      if (!value || !total) return 0;
+      return Math.max(3, Math.round((value / total) * 100));
+    }
+
+    function dependencyMapView(edges, allTasks) {
+      const visible = (edges || []).slice(0, 8);
+      if (!visible.length) return '<div class="dependency-map"><span class="pill done">sem dependencias visuais</span></div>';
+      const byID = new Map((allTasks || []).map(t => [Number(t.id), t]));
+      return `
+        <div class="dependency-map">
+          <div class="card-head">
+            <h3>Dependencias</h3>
+            <span class="pill">${escapeHtml(edges.length)} vinculo(s)</span>
+          </div>
+          ${visible.map(edge => {
+            const from = byID.get(Number(edge.from_task_id));
+            const to = byID.get(Number(edge.to_task_id));
+            return `
+              <div class="dependency-edge">
+                ${taskMiniView(from, edge.from_task_id, edge.from_status)}
+                <span class="dependency-arrow">${edge.blocked ? 'bloq' : '->'}</span>
+                ${taskMiniView(to, edge.to_task_id, edge.to_status, edge.cross_contract)}
+              </div>`;
+          }).join('')}
+          ${edges.length > visible.length ? `<div class="meta">+${escapeHtml(edges.length - visible.length)} dependencia(s) ocultas neste contrato</div>` : ''}
+        </div>`;
+    }
+
+    function taskMiniView(task, id, fallbackStatus, crossContract) {
+      const status = task?.status || fallbackStatus || 'desconhecida';
+      return `
+        <div class="task-mini">
+          <strong>#${escapeHtml(id)} ${escapeHtml(task?.title || 'tarefa')}</strong>
+          <span class="pill ${statusClass(status)}">${escapeHtml(status)}</span>
+          ${task?.role ? `<span class="pill">${escapeHtml(task.role)}</span>` : ''}
+          ${crossContract ? '<span class="pill warn">entre contratos</span>' : ''}
         </div>`;
     }
 
@@ -658,6 +1050,43 @@
         </article>`;
     }
 
+    function watchdogViewV2(event, tasks, events) {
+      const persisted = events || [];
+      const watched = (tasks || []).filter(t => Number(t.attempts || 0) > 0 || ['Bloqueado', 'Reprovado', 'Cancelado'].includes(t.status));
+      const blocked = persisted.filter(e => e.blocked).length || watched.filter(t => t.status === 'Bloqueado').length;
+      const last = event || persisted[0] || null;
+      const latest = last ? `
+        <div class="watchdog-line ${last.blocked ? 'blocked' : ''}">
+          <div>
+            <span class="pill ${last.blocked ? 'block' : 'warn'}">ultimo evento task #${escapeHtml(last.task_id)}</span>
+            <span class="pill">${escapeHtml(last.attempt)}/${escapeHtml(last.limit || 3)}</span>
+            <span class="pill ${statusClass(last.status)}">${escapeHtml(last.status)}</span>
+          </div>
+          <div class="meta">${escapeHtml(last.title || '')}</div>
+          <div>${escapeHtml(last.reason || '')}</div>
+        </div>` : '';
+      const history = persisted.slice(0, 4).map(item => `
+        <div class="dependency-line">
+          <span class="pill ${item.blocked ? 'block' : 'warn'}">#${escapeHtml(item.task_id)}</span>
+          <span class="pill">${escapeHtml(item.attempt)}/${escapeHtml(item.limit || 3)}</span>
+          <span class="pill ${statusClass(item.status)}">${escapeHtml(item.status)}</span>
+          <span class="meta">${escapeHtml(item.reason || '')}</span>
+        </div>`).join('');
+      return `
+        <article class="card" style="margin-bottom:10px">
+          <div class="card-head">
+            <h3>Watchdog</h3>
+            <span class="pill ${blocked ? 'block' : 'done'}">${blocked} bloqueada(s)</span>
+          </div>
+          <div class="contract-summary">
+            <span class="pill warn">${escapeHtml(watched.length)} tarefa(s) com tentativa/falha</span>
+            <span class="pill">${escapeHtml(persisted.length)} evento(s) persistido(s)</span>
+          </div>
+          ${latest}
+          ${history ? `<div class="dependency-map">${history}</div>` : ''}
+        </article>`;
+    }
+
     function taskJITSummary(task) {
       const items = ((task.payload || {}).jit_knowledge_packs || []).slice(0, 4);
       if (!items.length) return '';
@@ -674,8 +1103,50 @@
         </div>`;
     }
 
+    function auditContractOptions(ids) {
+      return [...new Set((ids || []).map(Number).filter(Boolean))].sort((a, b) => a - b);
+    }
+
+    function matchesContractFilter(contractID, filter) {
+      if (factoryBatchFilter !== 'all') {
+        const factoryContracts = new Set((snapshot.factory_items || []).filter(item => item.batch_id === factoryBatchFilter).map(item => Number(item.contract_id)));
+        if (!factoryContracts.has(Number(contractID))) return false;
+      }
+      return filter === 'all' || String(contractID) === String(filter);
+    }
+
+    function matchesAuditSearch(values) {
+      const query = auditSearch.trim().toLowerCase();
+      if (!query) return true;
+      return (values || []).some(value => String(value ?? '').toLowerCase().includes(query));
+    }
+
+    function auditFilterToolbar(kind, contractOptions, selectedContract) {
+      return `
+        <div class="audit-toolbar">
+          <label>Contrato
+            <select data-audit-control="${kind}-contract">
+              <option value="all" ${selectedContract === 'all' ? 'selected' : ''}>all</option>
+              ${(contractOptions || []).map(id => `<option value="${escapeHtml(id)}" ${String(selectedContract) === String(id) ? 'selected' : ''}>#${escapeHtml(id)}</option>`).join('')}
+            </select>
+          </label>
+          <label>Busca
+            <input data-audit-control="search" value="${escapeHtml(auditSearch)}" placeholder="hash, tarefa, texto">
+          </label>
+          <label>Lote
+            <select data-audit-control="factory-batch">
+              <option value="all" ${factoryBatchFilter === 'all' ? 'selected' : ''}>all</option>
+              ${(snapshot.factory_batches || []).map(batch => `<option value="${escapeHtml(batch.batch_id)}" ${factoryBatchFilter === batch.batch_id ? 'selected' : ''}>${escapeHtml(batch.batch_id)}</option>`).join('')}
+            </select>
+          </label>
+        </div>`;
+    }
+
     function artifactAuditView(artifacts, sealedTasks) {
-      const artifactList = artifacts.length ? artifacts.map(a => `
+      const contractOptions = auditContractOptions([...artifacts.map(a => a.contract_id), ...sealedTasks.map(t => t.contract_id)]);
+      const visibleArtifacts = artifacts.filter(a => matchesContractFilter(a.contract_id, artifactContractFilter) && matchesAuditSearch([a.path, a.sha256, a.contract_id, a.task_id]));
+      const visibleSealed = sealedTasks.filter(t => matchesContractFilter(t.contract_id, artifactContractFilter) && matchesAuditSearch([t.title, t.role, t.contract_id, t.id, JSON.stringify(t.payload || {})]));
+      const artifactList = visibleArtifacts.length ? visibleArtifacts.map(a => `
         <div class="audit-row">
           <div class="card-head">
             <h3>${escapeHtml(a.path)}</h3>
@@ -688,7 +1159,7 @@
           <div class="meta">sha256 ${escapeHtml(a.sha256)}</div>
           <div class="meta">${escapeHtml(a.created_at || '')}</div>
         </div>`).join('') : '<div class="empty">Nenhum artefato selado ainda.</div>';
-      const sealedList = sealedTasks.length ? sealedTasks.map(t => `
+      const sealedList = visibleSealed.length ? visibleSealed.map(t => `
         <div class="audit-row">
           <div class="card-head">
             <h3>#${t.id} ${escapeHtml(t.title)}</h3>
@@ -705,14 +1176,15 @@
           <article class="card">
             <div class="card-head">
               <h3>Artefatos</h3>
-              <span class="pill done">${escapeHtml(artifacts.length)} item(ns)</span>
+              <span class="pill done">${escapeHtml(visibleArtifacts.length)}/${escapeHtml(artifacts.length)} item(ns)</span>
             </div>
+            ${auditFilterToolbar('artifact', contractOptions, artifactContractFilter)}
             <div class="audit-grid">${artifactList}</div>
           </article>
           <article class="card">
             <div class="card-head">
               <h3>Tarefas seladas</h3>
-              <span class="pill done">${escapeHtml(sealedTasks.length)} tarefa(s)</span>
+              <span class="pill done">${escapeHtml(visibleSealed.length)}/${escapeHtml(sealedTasks.length)} tarefa(s)</span>
             </div>
             <div class="list">${sealedList}</div>
           </article>
@@ -746,6 +1218,39 @@
               <div class="meta">${escapeHtml(t.created_at)}</div>
               <pre>${escapeHtml(JSON.stringify(t.payload, null, 2))}</pre>
             </article>`).join('')}
+        </div>`;
+    }
+
+    function handoffViewV2(handoffs) {
+      if (!handoffs.length) return '<div class="empty">Nenhum handoff registrado.</div>';
+      const contractOptions = auditContractOptions(handoffs.map(h => h.contract_id));
+      const visible = handoffs.filter(h => matchesContractFilter(h.contract_id, handoffContractFilter) && matchesAuditSearch([h.id, h.kind, h.contract_id, h.from_task_id, h.to_task_id, h.sha256, JSON.stringify(h.payload || {})]));
+      return `
+        <div class="list">
+          <article class="card">
+            <div class="card-head">
+              <h3>Transferencias</h3>
+              <span class="pill">${escapeHtml(visible.length)}/${escapeHtml(handoffs.length)} handoff(s)</span>
+            </div>
+            <div class="meta">Cada transferencia mantem vinculo origem/destino e hash proprio.</div>
+            ${auditFilterToolbar('handoff', contractOptions, handoffContractFilter)}
+          </article>
+          ${visible.length ? visible.map(t => `
+            <article class="card">
+              <div class="card-head">
+                <h3>Handoff #${t.id}</h3>
+                <span class="pill">${escapeHtml(t.kind)}</span>
+              </div>
+              <div class="dependency-line">
+                <span class="pill">origem #${escapeHtml(t.from_task_id)}</span>
+                <span class="dependency-arrow">-></span>
+                <span class="pill">destino ${t.to_task_id ? '#' + escapeHtml(t.to_task_id) : 'dependentes'}</span>
+              </div>
+              <span class="pill">contrato ${escapeHtml(t.contract_id)}</span>
+              <div class="meta">sha256 ${escapeHtml(t.sha256)}</div>
+              <div class="meta">${escapeHtml(t.created_at)}</div>
+              <pre>${escapeHtml(JSON.stringify(t.payload, null, 2))}</pre>
+            </article>`).join('') : '<div class="empty">Nenhum handoff neste filtro.</div>'}
         </div>`;
     }
 
@@ -863,6 +1368,7 @@
     }
 
     function knowledgePackView(items, candidates) {
+      const visibleCandidates = (candidates || []).filter(item => (knowledgeCandidateFilter === 'all' || item.status === knowledgeCandidateFilter) && matchesAuditSearch([item.domain, item.pattern, item.action, item.template, item.evidence, item.task_id, item.contract_id]));
       const results = knowledgePackResults.length ? `
         <article class="card">
           <div class="card-head">
@@ -879,21 +1385,21 @@
           </div>
         </article>` : '';
       const pending = (candidates || []).filter(item => item.status === 'pending');
-      const candidateList = pending.length ? pending.map(item => `
+      const candidateList = visibleCandidates.length ? visibleCandidates.map(item => `
         <article class="audit-row">
           <div>
-            <span class="pill warn">pendente</span>
+            <span class="pill ${item.status === 'approved' ? 'done' : item.status === 'rejected' ? 'block' : 'warn'}">${escapeHtml(item.status)}</span>
             <span class="pill">${escapeHtml(item.domain)}</span>
             <span class="pill">task ${escapeHtml(item.task_id)}</span>
           </div>
           <div class="meta">pattern ${escapeHtml(item.pattern)} | action ${escapeHtml(item.action)}</div>
           <div>${escapeHtml(item.template)}</div>
           <div class="meta">${escapeHtml(item.evidence)}</div>
-          <div class="inline-actions">
+          ${item.status === 'pending' ? `<div class="inline-actions">
             <button class="primary" data-candidate-action="approve" data-candidate="${escapeHtml(item.id)}">Aprovar</button>
             <button class="ghost" data-candidate-action="reject" data-candidate="${escapeHtml(item.id)}">Rejeitar</button>
-          </div>
-        </article>`).join('') : '<div class="empty">Nenhuma regra candidata pendente.</div>';
+          </div>` : ''}
+        </article>`).join('') : '<div class="empty">Nenhuma regra candidata neste filtro.</div>';
       const inventory = items.length ? items.map(item => `
         <article class="card">
           <div class="card-head">
@@ -934,6 +1440,16 @@
             <div class="card-head">
               <h3>Regras candidatas</h3>
               <span class="pill warn">${escapeHtml(pending.length)} pendente(s)</span>
+            </div>
+            <div class="audit-toolbar">
+              <label>Status
+                <select data-audit-control="knowledge-status">
+                  ${['pending','approved','rejected','all'].map(value => `<option value="${value}" ${knowledgeCandidateFilter === value ? 'selected' : ''}>${value}</option>`).join('')}
+                </select>
+              </label>
+              <label>Busca
+                <input data-audit-control="search" value="${escapeHtml(auditSearch)}" placeholder="dominio, padrao, evidencia">
+              </label>
             </div>
             <div class="list">${candidateList}</div>
           </article>
@@ -1065,6 +1581,51 @@
         </div>`;
     }
 
+    function logsViewV2(logs) {
+      if (!logs.length) return '<div class="empty">Nenhum log tecnico registrado.</div>';
+      const counts = logs.reduce((acc, item) => {
+        acc[item.level] = (acc[item.level] || 0) + 1;
+        return acc;
+      }, {});
+      const scopes = [...new Set(logs.map(item => item.scope).filter(Boolean))].sort();
+      const visible = logs.filter(item => (logLevelFilter === 'all' || item.level === logLevelFilter) && (logScopeFilter === 'all' || item.scope === logScopeFilter) && matchesAuditSearch([item.level, item.scope, item.message, item.created_at]));
+      return `
+        <div class="list">
+          <article class="card">
+            <div class="card-head">
+              <h3>Logs tecnicos</h3>
+              <span class="pill">${escapeHtml(visible.length)}/${escapeHtml(logs.length)} recentes</span>
+            </div>
+            <div class="inline-actions">
+              ${Object.entries(counts).map(([level, count]) => `<span class="pill ${level === 'ERROR' ? 'block' : level === 'WARN' ? 'warn' : 'run'}">${escapeHtml(level)} ${escapeHtml(count)}</span>`).join('')}
+            </div>
+            <div class="audit-toolbar" style="margin-top:10px">
+              <label>Nivel
+                <select data-audit-control="log-level">
+                  ${['all','ERROR','WARN','INFO'].map(value => `<option value="${value}" ${logLevelFilter === value ? 'selected' : ''}>${value}</option>`).join('')}
+                </select>
+              </label>
+              <label>Origem
+                <select data-audit-control="log-scope">
+                  <option value="all" ${logScopeFilter === 'all' ? 'selected' : ''}>all</option>
+                  ${scopes.map(value => `<option value="${escapeHtml(value)}" ${logScopeFilter === value ? 'selected' : ''}>${escapeHtml(value)}</option>`).join('')}
+                </select>
+              </label>
+              <label>Busca
+                <input data-audit-control="search" value="${escapeHtml(auditSearch)}" placeholder="mensagem, origem, nivel">
+              </label>
+            </div>
+          </article>
+          ${visible.length ? visible.map(l => `
+            <article class="card log-row ${escapeHtml(l.level)}">
+              <span class="pill ${l.level === 'ERROR' ? 'block' : l.level === 'WARN' ? 'warn' : 'run'}">${escapeHtml(l.level)}</span>
+              <span class="pill">${escapeHtml(l.scope)}</span>
+              <div>${escapeHtml(l.message)}</div>
+              <div class="meta">${escapeHtml(l.created_at)}</div>
+            </article>`).join('') : '<div class="empty">Nenhum log neste filtro.</div>'}
+        </div>`;
+    }
+
     function engineView(engine) {
       if (!engine) return '<div class="meta">Symbolic Engine ainda nao inicializado.</div>';
       const packs = engine.packs || [];
@@ -1143,6 +1704,66 @@
         </div>`;
     }
 
+    function questionFormV2(session) {
+      const questions = session.questions || [];
+      const draft = interrogationDrafts[session.id];
+      const answered = Object.values(session.answers || {}).filter(Boolean).length;
+      return `
+        <div class="question-list">
+          <div class="seal-warning">Revise as respostas com cuidado. O contrato final sera selado por hash e nao podera ser editado depois.</div>
+          <div class="contract-summary">
+            <span class="pill">${escapeHtml(answered)}/${escapeHtml(questions.length)} respostas salvas</span>
+            <span class="pill ${draft ? 'done' : 'warn'}">${draft ? 'previa pronta' : 'gerar previa'}</span>
+          </div>
+          ${questions.map((q, i) => `
+            <label><span><span class="question-index">${i + 1}</span>${escapeHtml(q)}</span>
+              <input data-answer="${session.id}:q${i + 1}" value="${escapeHtml((session.answers || {})['q' + (i + 1)] || '')}">
+            </label>`).join('')}
+          <div class="meta">Responda o suficiente para formar um contrato auditavel. Depois gere a revisao, ajuste o texto final e sele.</div>
+          <div class="inline-actions">
+            <button class="ghost" data-preview="${session.id}">Pre-visualizar contrato</button>
+          </div>
+          ${draft ? contractDraftFormV2(session.id, draft) : ''}
+        </div>`;
+    }
+
+    function contractDraftFormV2(id, draft) {
+      return `
+        <div class="contract-draft">
+          <div class="card-head">
+            <h3>Contrato em revisao</h3>
+            <span class="pill">hash ${escapeHtml(draft.hash || 'recalculado ao selar')}</span>
+          </div>
+          <div class="contract-review-grid">
+            <div class="audit-row">
+              <strong>Objetivo</strong>
+              <span class="meta">Define o norte imutavel do trabalho.</span>
+            </div>
+            <div class="audit-row">
+              <strong>Restricoes</strong>
+              <span class="meta">Limites tecnicos e operacionais.</span>
+            </div>
+            <div class="audit-row">
+              <strong>Entregaveis</strong>
+              <span class="meta">Saidas que o Quadro de Obras deve produzir.</span>
+            </div>
+          </div>
+          <label>Objetivo final
+            <textarea data-draft="${id}:north_star">${escapeHtml(draft.north_star || '')}</textarea>
+          </label>
+          <label>Restricoes
+            <textarea data-draft="${id}:constraints">${escapeHtml(draft.constraints || '')}</textarea>
+          </label>
+          <label>Entregaveis
+            <textarea data-draft="${id}:deliverables">${escapeHtml(draft.deliverables || '')}</textarea>
+          </label>
+          <div class="seal-warning">Ao selar, o contrato vira fonte de verdade no SQLite e o hash passa a identificar esta versao. Edicoes posteriores exigem novo contrato.</div>
+          <div class="inline-actions">
+            <button class="primary" data-finalize="${id}">Selar contrato revisado</button>
+          </div>
+        </div>`;
+    }
+
     async function refresh() {
       const res = await fetch('/api/snapshot');
       snapshot = await res.json();
@@ -1173,14 +1794,16 @@
     $('factorySend').onclick = async () => {
       const template = $('input').value.trim();
       const items = $('factoryItems').value.split('\n').map(x => x.trim()).filter(Boolean);
+      const force_new = $('factoryForceNew').checked;
       if (!template || !items.length) return;
       await fetch('/api/factory_series', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ template, items })
+        body: JSON.stringify({ template, items, force_new })
       });
       $('input').value = '';
       $('factoryItems').value = '';
+      $('factoryForceNew').checked = false;
       refresh();
     };
     document.addEventListener('click', async (event) => {
@@ -1200,6 +1823,7 @@
       const id = Number(button.dataset.finalize);
       const answers = answersForInterrogation(id);
       const draft = draftForInterrogation(id);
+      if (!confirm('Selar este contrato agora? Depois disso, ele sera imutavel e identificado pelo hash.')) return;
       await fetch('/api/interrogations/finalize', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ id, answers, ...draft }) });
       delete interrogationDrafts[id];
       refresh();
@@ -1220,7 +1844,54 @@
       });
       return draft;
     }
+    document.addEventListener('input', (event) => {
+      const control = event.target.closest('[data-audit-control="search"]');
+      if (!control) return;
+      auditSearch = control.value;
+      render();
+    });
+    document.addEventListener('change', (event) => {
+      const control = event.target.closest('[data-audit-control]');
+      if (!control) return;
+      switch (control.dataset.auditControl) {
+        case 'artifact-contract':
+          artifactContractFilter = control.value;
+          break;
+        case 'handoff-contract':
+          handoffContractFilter = control.value;
+          break;
+        case 'factory-batch':
+          factoryBatchFilter = control.value;
+          break;
+        case 'knowledge-status':
+          knowledgeCandidateFilter = control.value;
+          break;
+        case 'log-level':
+          logLevelFilter = control.value;
+          break;
+        case 'log-scope':
+          logScopeFilter = control.value;
+          break;
+        default:
+          return;
+      }
+      render();
+    });
     document.addEventListener('click', async (event) => {
+      const factoryButton = event.target.closest('[data-factory-action]');
+      if (factoryButton) {
+        const batch_id = factoryButton.dataset.batch;
+        const action = factoryButton.dataset.factoryAction;
+        const index = Number(factoryButton.dataset.index || 0);
+        const reason = prompt(`Motivo para ${action}:`) || '';
+        await fetch('/api/factory_batches/action', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ batch_id, action, index, reason })
+        });
+        refresh();
+        return;
+      }
       const actionButton = event.target.closest('[data-task-action]');
       if (actionButton) {
         const id = Number(actionButton.dataset.task);
@@ -1306,6 +1977,7 @@
       $('engine').classList.toggle('hidden', btn.dataset.tab !== 'engine');
       $('sealed').classList.toggle('hidden', btn.dataset.tab !== 'sealed');
       $('handoffs').classList.toggle('hidden', btn.dataset.tab !== 'handoffs');
+      $('factory').classList.toggle('hidden', btn.dataset.tab !== 'factory');
       $('plugins').classList.toggle('hidden', btn.dataset.tab !== 'plugins');
       $('knowledge_packs').classList.toggle('hidden', btn.dataset.tab !== 'knowledge_packs');
       $('audit_metrics').classList.toggle('hidden', btn.dataset.tab !== 'audit_metrics');
@@ -1329,6 +2001,8 @@
       $('yamlSend').classList.toggle('hidden', inputMode !== 'yaml');
       $('factoryItems').classList.toggle('hidden', inputMode !== 'factory');
       $('factorySend').classList.toggle('hidden', inputMode !== 'factory');
+      $('factoryForceWrap').classList.toggle('hidden', inputMode !== 'factory');
+      $('factoryForceWrap').style.display = inputMode === 'factory' ? 'block' : 'none';
     });
 
     function connect() {

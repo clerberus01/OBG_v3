@@ -135,7 +135,10 @@ func validateJSONArtifacts(contractID int64, inventory artifactInventory) (strin
 		if entry.IsDir() || !strings.EqualFold(filepath.Ext(path), ".json") {
 			return nil
 		}
-		raw, err := os.ReadFile(path)
+		if entry.Type()&os.ModeSymlink != 0 {
+			return fmt.Errorf("symlink nao permitido em artefato JSON: %s", path)
+		}
+		raw, err := os.ReadFile(path) // #nosec G304 G122 -- path is produced by WalkDir inside the contract artifact directory and symlinks are rejected.
 		if err != nil {
 			return err
 		}
@@ -208,7 +211,7 @@ func runValidationCommand(command string) validationResult {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Minute)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, fields[0], fields[1:]...)
+	cmd := exec.CommandContext(ctx, fields[0], fields[1:]...) // #nosec G204 -- command comes from validationCommands fixed allowlist.
 	cmd.Dir = "."
 	cmd.Env = validationEnv(os.Environ())
 	var out bytes.Buffer
@@ -236,11 +239,11 @@ func runValidationCommand(command string) validationResult {
 
 func validationEnv(env []string) []string {
 	if cacheDir, err := filepath.Abs(filepath.Join("tmp", "go-validation-cache")); err == nil {
-		_ = os.MkdirAll(cacheDir, 0755)
+		_ = os.MkdirAll(cacheDir, 0700)
 		env = upsertEnv(env, "GOCACHE", cacheDir)
 	}
 	if tmpDir, err := filepath.Abs(filepath.Join("tmp", "go-validation-tmp")); err == nil {
-		_ = os.MkdirAll(tmpDir, 0755)
+		_ = os.MkdirAll(tmpDir, 0700)
 		env = upsertEnv(env, "GOTMPDIR", tmpDir)
 	}
 	env = upsertEnv(env, "CGO_ENABLED", "0")
