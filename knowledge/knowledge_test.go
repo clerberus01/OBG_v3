@@ -66,6 +66,9 @@ func TestInitialPackFilesLoad(t *testing.T) {
 		"automation.pack.json",
 		"web-services.pack.json",
 		"local-tools.pack.json",
+		"analysis.pack.json",
+		"strategy.pack.json",
+		"design.pack.json",
 	}
 	for _, file := range files {
 		t.Run(file, func(t *testing.T) {
@@ -150,5 +153,69 @@ func TestSearchByDomainRuleAndPattern(t *testing.T) {
 	}
 	if len(combined) != 1 || combined[0].Topic != "code" || combined[0].RuleMatches[0].Action != "contract_api" {
 		t.Fatalf("combined = %#v", combined)
+	}
+}
+
+func TestDedicatedDomainPacksSearchAndReload(t *testing.T) {
+	store, err := database.Open(filepath.Join(t.TempDir(), "loja.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+
+	lib := New(store)
+	cases := []struct {
+		domain  string
+		file    string
+		rule    string
+		pattern string
+	}{
+		{domain: "analysis", file: "analysis.pack.json", rule: "define_hypothesis", pattern: "analise"},
+		{domain: "strategy", file: "strategy.pack.json", rule: "north_star_alignment", pattern: "estrategia"},
+		{domain: "design", file: "design.pack.json", rule: "user_flow_first", pattern: "design"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.domain, func(t *testing.T) {
+			pack, err := LoadFromFile(filepath.Join(".", tc.file))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := lib.SaveKnowledgePack(pack, "test-pack"); err != nil {
+				t.Fatal(err)
+			}
+
+			loaded, err := lib.Load(tc.domain)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if loaded.Topic != tc.domain || len(loaded.PackRules) == 0 {
+				t.Fatalf("loaded = %#v", loaded)
+			}
+
+			byDomain, err := lib.SearchWithOptions(SearchOptions{Domain: tc.domain, Limit: 10})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(byDomain) != 1 || byDomain[0].Topic != tc.domain {
+				t.Fatalf("by domain = %#v", byDomain)
+			}
+
+			combined, err := lib.SearchWithOptions(SearchOptions{
+				Domain:  tc.domain,
+				Rule:    tc.rule,
+				Pattern: tc.pattern,
+				Limit:   10,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(combined) != 1 || len(combined[0].RuleMatches) != 1 {
+				t.Fatalf("combined = %#v", combined)
+			}
+			match := combined[0].RuleMatches[0]
+			if match.Action != tc.rule || match.Pattern != tc.pattern {
+				t.Fatalf("match = %#v", match)
+			}
+		})
 	}
 }

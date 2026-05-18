@@ -517,7 +517,7 @@
         <button class="tab" data-tab="handoffs">Handoffs</button>
         <button class="tab" data-tab="factory">Fabrica</button>
         <button class="tab" data-tab="plugins">Plugins</button>
-        <button class="tab" data-tab="knowledge_packs">Knowledge Packs</button>
+        <button class="tab" data-tab="knowledge_packs">Packs</button>
         <button class="tab" data-tab="audit_metrics">Métricas</button>
         <button class="tab" data-tab="logs">Logs</button>
       </div>
@@ -820,6 +820,7 @@
           ${paused ? `<button class="primary" data-factory-action="resume" data-batch="${escapeHtml(batch.batch_id)}">Retomar</button>` : ''}
           ${(!paused && !cancelled) ? `<button class="ghost" data-factory-action="pause" data-batch="${escapeHtml(batch.batch_id)}">Pausar</button>` : ''}
           ${!cancelled ? `<button class="danger" data-factory-action="cancel" data-batch="${escapeHtml(batch.batch_id)}">Cancelar lote</button>` : ''}
+          <button class="ghost" data-factory-export="${escapeHtml(batch.batch_id)}">Exportar JSON</button>
         </div>`;
     }
 
@@ -1011,9 +1012,9 @@
 
     function watchdogTaskView(task) {
       const watchdog = (task.payload || {}).watchdog || {};
-      const attempts = Number(task.attempts || watchdog.attempt || 0);
+      const limit = Number(watchdog.limit || 3);
+      const attempts = cappedAttempt(task.attempts || watchdog.attempt || 0, limit);
       if (!attempts && !['Bloqueado', 'Reprovado', 'Cancelado'].includes(task.status)) return '';
-      const limit = watchdog.limit || 3;
       const reason = watchdog.reason || task.payload?.reason || task.payload?.retry_reason || task.payload?.cancel_reason || task.payload?.panic_reason || '';
       const blocked = task.status === 'Bloqueado' || watchdog.blocked;
       return `
@@ -1029,11 +1030,13 @@
     function watchdogView(event, tasks) {
       const watched = (tasks || []).filter(t => Number(t.attempts || 0) > 0 || ['Bloqueado', 'Reprovado', 'Cancelado'].includes(t.status));
       const blocked = watched.filter(t => t.status === 'Bloqueado').length;
+      const eventLimit = Number(event?.limit || 3);
+      const eventAttempt = cappedAttempt(event?.attempt || 0, eventLimit);
       const last = event ? `
         <div class="watchdog-line ${event.blocked ? 'blocked' : ''}">
           <div>
             <span class="pill ${event.blocked ? 'block' : 'warn'}">último evento task #${escapeHtml(event.task_id)}</span>
-            <span class="pill">${escapeHtml(event.attempt)}/${escapeHtml(event.limit)}</span>
+            <span class="pill">${escapeHtml(eventAttempt)}/${escapeHtml(eventLimit)}</span>
             <span class="pill ${statusClass(event.status)}">${escapeHtml(event.status)}</span>
           </div>
           <div class="meta">${escapeHtml(event.title)}</div>
@@ -1055,11 +1058,13 @@
       const watched = (tasks || []).filter(t => Number(t.attempts || 0) > 0 || ['Bloqueado', 'Reprovado', 'Cancelado'].includes(t.status));
       const blocked = persisted.filter(e => e.blocked).length || watched.filter(t => t.status === 'Bloqueado').length;
       const last = event || persisted[0] || null;
+      const lastLimit = Number(last?.limit || 3);
+      const lastAttempt = cappedAttempt(last?.attempt || 0, lastLimit);
       const latest = last ? `
         <div class="watchdog-line ${last.blocked ? 'blocked' : ''}">
           <div>
             <span class="pill ${last.blocked ? 'block' : 'warn'}">ultimo evento task #${escapeHtml(last.task_id)}</span>
-            <span class="pill">${escapeHtml(last.attempt)}/${escapeHtml(last.limit || 3)}</span>
+            <span class="pill">${escapeHtml(lastAttempt)}/${escapeHtml(lastLimit)}</span>
             <span class="pill ${statusClass(last.status)}">${escapeHtml(last.status)}</span>
           </div>
           <div class="meta">${escapeHtml(last.title || '')}</div>
@@ -1068,7 +1073,7 @@
       const history = persisted.slice(0, 4).map(item => `
         <div class="dependency-line">
           <span class="pill ${item.blocked ? 'block' : 'warn'}">#${escapeHtml(item.task_id)}</span>
-          <span class="pill">${escapeHtml(item.attempt)}/${escapeHtml(item.limit || 3)}</span>
+          <span class="pill">${escapeHtml(cappedAttempt(item.attempt || 0, item.limit || 3))}/${escapeHtml(item.limit || 3)}</span>
           <span class="pill ${statusClass(item.status)}">${escapeHtml(item.status)}</span>
           <span class="meta">${escapeHtml(item.reason || '')}</span>
         </div>`).join('');
@@ -1085,6 +1090,13 @@
           ${latest}
           ${history ? `<div class="dependency-map">${history}</div>` : ''}
         </article>`;
+    }
+
+    function cappedAttempt(value, limit = 3) {
+      const numericLimit = Number(limit || 3);
+      const attempt = Number(value || 0);
+      if (!Number.isFinite(attempt) || attempt < 0) return 0;
+      return Math.min(attempt, numericLimit);
     }
 
     function taskJITSummary(task) {
@@ -1274,6 +1286,7 @@
         <article class="audit-row">
           <div>
             <span class="pill ${command.enabled ? 'done' : 'warn'}">${command.enabled ? 'ativo' : 'inativo'}</span>
+            <span class="pill ${command.status === 'blocked' ? 'block' : command.status === 'approved-script' ? 'done' : 'warn'}">${escapeHtml(command.status || 'registered')}</span>
             <span class="pill">${escapeHtml(command.kind)}</span>
             <span class="pill">${escapeHtml(command.transport)}</span>
           </div>
@@ -1878,6 +1891,24 @@
       render();
     });
     document.addEventListener('click', async (event) => {
+      const exportButton = event.target.closest('[data-factory-export]');
+      if (exportButton) {
+        const batch_id = exportButton.dataset.factoryExport;
+        const res = await fetch(`/api/factory_batches/export?batch_id=${encodeURIComponent(batch_id)}`);
+        const data = await res.json();
+        if (!res.ok) {
+          alert(data.error || 'Falha na exportacao do lote');
+          return;
+        }
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `factory-${batch_id}.json`;
+        link.click();
+        URL.revokeObjectURL(url);
+        return;
+      }
       const factoryButton = event.target.closest('[data-factory-action]');
       if (factoryButton) {
         const batch_id = factoryButton.dataset.batch;

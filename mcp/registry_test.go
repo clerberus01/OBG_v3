@@ -236,6 +236,60 @@ func TestCallLocalServicePlugin(t *testing.T) {
 	}
 }
 
+func TestCallServicePluginTruncatesOutputAndReportsHTTPError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/error" {
+			http.Error(w, strings.Repeat("x", 40), http.StatusBadGateway)
+			return
+		}
+		_, _ = w.Write([]byte(strings.Repeat("a", 64)))
+	}))
+	defer server.Close()
+
+	dir := t.TempDir()
+	writeManifest(t, dir, Manifest{
+		ID:        "svc",
+		Name:      "Service",
+		Transport: "local-service",
+		Endpoint:  server.URL,
+		Enabled:   true,
+		Sandbox:   SandboxPolicy{MaxOutputBytes: 12},
+		Tools:     []Tool{{Name: "echo", Description: "echo test"}},
+	})
+	registry, err := LoadRegistry(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := registry.Call(context.Background(), CallRequest{PluginID: "svc", Tool: "echo"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(result.Output, "saida truncada") || len(result.Output) <= 12 {
+		t.Fatalf("expected truncated output, got %q", result.Output)
+	}
+
+	writeManifest(t, dir, Manifest{
+		ID:        "badsvc",
+		Name:      "Bad Service",
+		Transport: "local-service",
+		Endpoint:  server.URL + "/error",
+		Enabled:   true,
+		Sandbox:   SandboxPolicy{MaxOutputBytes: 12},
+		Tools:     []Tool{{Name: "echo", Description: "echo test"}},
+	})
+	registry, err = LoadRegistry(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err = registry.Call(context.Background(), CallRequest{PluginID: "badsvc", Tool: "echo"})
+	if err == nil || !strings.Contains(err.Error(), "HTTP 502") {
+		t.Fatalf("expected HTTP error, got result=%#v err=%v", result, err)
+	}
+	if !strings.Contains(result.Output, "saida truncada") {
+		t.Fatalf("expected truncated error output, got %q", result.Output)
+	}
+}
+
 func TestCommandRegistrationsClassifyLocalAndWebTargets(t *testing.T) {
 	registry := Registry{Plugins: []Plugin{
 		{
@@ -262,6 +316,31 @@ func TestCommandRegistrationsClassifyLocalAndWebTargets(t *testing.T) {
 		},
 		{
 			Manifest: Manifest{
+				ID:        "script",
+				Name:      "Script",
+				Transport: "stdio-json",
+				Command:   "powershell",
+				Args:      []string{"-File", "scripts/audit.ps1"},
+				Enabled:   true,
+				Sandbox:   SandboxPolicy{ApprovedScripts: []string{"scripts/audit.ps1"}},
+				Tools:     []Tool{{Name: "audit"}},
+			},
+			Path: "plugins/script.json",
+		},
+		{
+			Manifest: Manifest{
+				ID:        "blocked",
+				Name:      "Blocked",
+				Transport: "stdio-json",
+				Command:   "gofmt",
+				Args:      []string{"-w"},
+				Enabled:   false,
+				Tools:     []Tool{{Name: "format"}},
+			},
+			Path: "plugins/blocked.json",
+		},
+		{
+			Manifest: Manifest{
 				ID:        "web",
 				Name:      "Web",
 				Transport: "web-service",
@@ -272,17 +351,23 @@ func TestCommandRegistrationsClassifyLocalAndWebTargets(t *testing.T) {
 		},
 	}}
 	commands := registry.CommandRegistrations()
-	if len(commands) != 3 {
+	if len(commands) != 5 {
 		t.Fatalf("commands = %#v", commands)
 	}
-	if commands[0].Kind != "local-command" || commands[0].Target != "gofmt -w" {
+	if commands[0].Kind != "local-command" || commands[0].Status != "enabled" || commands[0].Target != "gofmt -w" {
 		t.Fatalf("local command = %#v", commands[0])
 	}
 	if commands[1].Kind != "local-service" || commands[1].Target != "http://127.0.0.1:9000/tool" {
 		t.Fatalf("local service = %#v", commands[1])
 	}
-	if commands[2].Kind != "web-service" || commands[2].Target != "https://example.com/tool" {
-		t.Fatalf("web service = %#v", commands[2])
+	if commands[2].Kind != "local-script" || commands[2].Status != "approved-script" || commands[2].Target != "powershell -File scripts/audit.ps1" {
+		t.Fatalf("local script = %#v", commands[2])
+	}
+	if commands[3].Kind != "local-command" || commands[3].Status != "blocked" {
+		t.Fatalf("blocked command = %#v", commands[3])
+	}
+	if commands[4].Kind != "web-service" || commands[4].Target != "https://example.com/tool" {
+		t.Fatalf("web service = %#v", commands[4])
 	}
 }
 
@@ -311,6 +396,37 @@ func TestWebServiceRequiresHTTPS(t *testing.T) {
 	err := plugin.Validate()
 	if err == nil || !strings.Contains(err.Error(), "https") {
 		t.Fatalf("expected https validation error, got %v", err)
+	}
+}
+
+func TestWebServiceRejectsLoopbackAndInvalidHeaders(t *testing.T) {
+	plugin := Plugin{Manifest: Manifest{
+		ID:        "web",
+		Name:      "Web",
+		Transport: "web-service",
+		Endpoint:  "https://localhost/plugin",
+		Enabled:   true,
+	}}
+	err := plugin.Validate()
+	if err == nil || !strings.Contains(err.Error(), "localhost") {
+		t.Fatalf("expected localhost validation error, got %v", err)
+	}
+	plugin = Plugin{Manifest: Manifest{
+		ID:        "web",
+		Name:      "Web",
+		Transport: "web-service",
+		Endpoint:  "https://example.com/plugin",
+		Headers:   map[string]string{"Bad\nHeader": "x"},
+		Enabled:   true,
+	}}
+	err = plugin.Validate()
+	if err == nil || !strings.Contains(err.Error(), "header invalido") {
+		t.Fatalf("expected header validation error, got %v", err)
+	}
+	plugin.Manifest.Headers = map[string]string{"X-Test": "bad\r\nvalue"}
+	err = plugin.Validate()
+	if err == nil || !strings.Contains(err.Error(), "valor de header invalido") {
+		t.Fatalf("expected header value validation error, got %v", err)
 	}
 }
 

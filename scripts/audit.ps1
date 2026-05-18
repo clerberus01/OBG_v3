@@ -3,6 +3,8 @@ $ErrorActionPreference = "Stop"
 $root = Resolve-Path (Join-Path $PSScriptRoot "..")
 $cache = Join-Path $root ".gocache"
 $tmp = Join-Path $root "tmp\go-tmp"
+$benchOut = Join-Path $tmp "benchmark.out"
+$benchBudget = Join-Path $PSScriptRoot "benchmark-budget.json"
 
 function Resolve-GoCommand {
   $preferred = Get-Command go1.26.3 -ErrorAction SilentlyContinue
@@ -110,7 +112,15 @@ try {
   }
 
   Write-Host "== benchmarks: CPU/RAM =="
-  Invoke-Checked { & $go test ./engine/symbolic ./knowledge ./plugins/sandbox -run '^$' -bench . -benchmem -count 3 } "benchmarks"
+  $benchmarkOutput = & $go test ./engine/symbolic ./knowledge ./plugins/sandbox -run '^$' -bench . -benchmem -count 3 2>&1
+  $benchmarkOutput | Set-Content -LiteralPath $benchOut -Encoding UTF8
+  $benchmarkOutput | ForEach-Object { Write-Host $_ }
+  if ($LASTEXITCODE -ne 0) {
+    throw "benchmarks falhou com codigo $LASTEXITCODE"
+  }
+
+  Write-Host "== benchmarks: orcamento CPU/RAM =="
+  Invoke-Checked { & (Join-Path $PSScriptRoot "check-benchmark-budget.ps1") -InputPath $benchOut -BudgetPath $benchBudget } "orcamento de benchmarks"
 }
 finally {
   Pop-Location

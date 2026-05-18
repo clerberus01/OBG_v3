@@ -55,6 +55,7 @@ type CommandRegistration struct {
 	Kind         string         `json:"kind"`
 	Transport    string         `json:"transport"`
 	Target       string         `json:"target"`
+	Status       string         `json:"status"`
 	Enabled      bool           `json:"enabled"`
 	ManifestPath string         `json:"manifest_path"`
 	Sandbox      sandbox.Policy `json:"sandbox"`
@@ -200,9 +201,10 @@ func (p Plugin) CommandRegistrations() []CommandRegistration {
 		out = append(out, CommandRegistration{
 			PluginID:     p.ID,
 			Tool:         tool.Name,
-			Kind:         commandKind(p.Transport),
+			Kind:         commandKind(p),
 			Transport:    p.Transport,
 			Target:       commandTarget(p),
+			Status:       commandStatus(p),
 			Enabled:      p.Enabled,
 			ManifestPath: p.Path,
 			Sandbox:      p.Sandbox,
@@ -219,15 +221,44 @@ func (r Registry) Call(ctx context.Context, req CallRequest) (CallResult, error)
 	return plugin.Call(ctx, req)
 }
 
-func commandKind(transport string) string {
-	switch transport {
+func commandKind(p Plugin) string {
+	switch p.Transport {
 	case "local-service":
 		return "local-service"
 	case "web-service":
 		return "web-service"
 	default:
+		if localScriptTarget(p.Command, p.Args) {
+			return "local-script"
+		}
 		return "local-command"
 	}
+}
+
+func commandStatus(p Plugin) string {
+	if !p.Enabled {
+		return "blocked"
+	}
+	if p.Transport == "stdio-json" && localScriptTarget(p.Command, p.Args) {
+		return "approved-script"
+	}
+	if p.Transport == "stdio-json" && len(p.Sandbox.AllowCommands) > 0 {
+		return "controlled-command"
+	}
+	return "enabled"
+}
+
+func localScriptTarget(command string, args []string) bool {
+	base := strings.ToLower(filepath.Base(strings.TrimSpace(command)))
+	if base == "powershell" || base == "powershell.exe" || base == "pwsh" || base == "pwsh.exe" {
+		for i := 0; i < len(args)-1; i++ {
+			if strings.EqualFold(args[i], "-File") {
+				return true
+			}
+		}
+	}
+	ext := strings.ToLower(filepath.Ext(command))
+	return ext == ".ps1" || ext == ".bat" || ext == ".cmd"
 }
 
 func commandTarget(p Plugin) string {

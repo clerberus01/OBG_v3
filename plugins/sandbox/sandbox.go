@@ -425,8 +425,8 @@ func controlledGitAllowed(args []string) bool {
 	if _, ok := allowed[command]; !ok {
 		return false
 	}
-	if command == "remote" && len(args) > 1 && args[1] != "-v" {
-		return false
+	if command == "remote" {
+		return len(args) == 1 || (len(args) == 2 && args[1] == "-v")
 	}
 	return true
 }
@@ -467,11 +467,11 @@ func controlledCurlAllowed(args []string) bool {
 	blocked := map[string]struct{}{
 		"-d": {}, "--data": {}, "--data-raw": {}, "--data-binary": {}, "--form": {}, "-F": {},
 		"-o": {}, "-O": {}, "--output": {}, "--remote-name": {}, "-T": {}, "--upload-file": {},
-		"-K": {}, "--config": {}, "--netrc": {}, "--proxy": {}, "-x": {},
+		"-H": {}, "--header": {}, "-K": {}, "--config": {}, "--netrc": {}, "--proxy": {}, "-x": {},
 	}
 	for i := 0; i < len(args); i++ {
 		arg := args[i]
-		if _, ok := blocked[arg]; ok {
+		if curlBlockedArg(arg, blocked) {
 			return false
 		}
 		switch arg {
@@ -486,6 +486,10 @@ func controlledCurlAllowed(args []string) bool {
 			method = "HEAD"
 			continue
 		}
+		if strings.HasPrefix(arg, "--request=") {
+			method = strings.ToUpper(strings.TrimPrefix(arg, "--request="))
+			continue
+		}
 		if strings.HasPrefix(arg, "http://") || strings.HasPrefix(arg, "https://") {
 			if err := ValidateCurlURL(arg); err != nil {
 				return false
@@ -494,6 +498,23 @@ func controlledCurlAllowed(args []string) bool {
 		}
 	}
 	return hasURL && (method == "GET" || method == "HEAD")
+}
+
+func curlBlockedArg(arg string, blocked map[string]struct{}) bool {
+	if _, ok := blocked[arg]; ok {
+		return true
+	}
+	for item := range blocked {
+		if strings.HasPrefix(item, "--") && strings.HasPrefix(arg, item+"=") {
+			return true
+		}
+	}
+	for _, prefix := range []string{"-d", "-F", "-o", "-T", "-H", "-x"} {
+		if arg != prefix && strings.HasPrefix(arg, prefix) {
+			return true
+		}
+	}
+	return false
 }
 
 func ValidateCurlURL(raw string) error {
@@ -588,18 +609,21 @@ func isPowerShellCommand(command string) bool {
 }
 
 func powerShellFileArg(args []string) (string, bool) {
+	var script string
 	for i := 0; i < len(args); i++ {
 		if strings.EqualFold(args[i], "-File") {
 			if i+1 >= len(args) {
 				return "", false
 			}
-			return args[i+1], true
+			script = args[i+1]
+			i++
+			continue
 		}
 		if strings.EqualFold(args[i], "-Command") || strings.EqualFold(args[i], "-EncodedCommand") {
 			return "", false
 		}
 	}
-	return "", false
+	return script, script != ""
 }
 
 func projectRoot(manifestPath string) string {

@@ -2,6 +2,7 @@ package symbolic
 
 import (
 	"encoding/json"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -248,6 +249,59 @@ func TestSymbolicEngineExecutesPlannedDomainTasks(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestSymbolicEngineAppliesDedicatedDomainPacks(t *testing.T) {
+	cases := []struct {
+		domain      string
+		file        string
+		description string
+		action      string
+	}{
+		{domain: "analysis", file: "analysis.pack.json", description: "fazer analise de dados e risco", action: "define_hypothesis"},
+		{domain: "strategy", file: "strategy.pack.json", description: "definir estrategia e roadmap", action: "north_star_alignment"},
+		{domain: "design", file: "design.pack.json", description: "criar design de dashboard responsivo", action: "user_flow_first"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.domain, func(t *testing.T) {
+			eng := NewSymbolicEngine()
+			pack, err := knowledge.LoadFromFile(filepath.Join("..", "..", "knowledge", tc.file))
+			if err != nil {
+				t.Fatal(err)
+			}
+			eng.LoadKnowledgePack(pack)
+
+			raw, err := eng.ExecuteTask(Task{
+				ID:          tc.domain + "-task",
+				Domain:      tc.domain,
+				Role:        "Analista",
+				Description: tc.description,
+				Status:      StatusPending,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			var result ExecutionResult
+			if err := json.Unmarshal(raw, &result); err != nil {
+				t.Fatal(err)
+			}
+			if !hasAppliedAction(result.RulesApplied, tc.action) {
+				t.Fatalf("action %s not applied: %#v", tc.action, result.RulesApplied)
+			}
+			if result.Domain != tc.domain || result.Status != StatusDone || !result.Deterministic {
+				t.Fatalf("result = %#v", result)
+			}
+		})
+	}
+}
+
+func hasAppliedAction(rules []AppliedRule, action string) bool {
+	for _, rule := range rules {
+		if rule.Action == action {
+			return true
+		}
+	}
+	return false
 }
 
 func TestSymbolicPlannerUsesMatchingKnowledgePackRules(t *testing.T) {

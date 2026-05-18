@@ -191,6 +191,34 @@ type FactoryBatchActionRequest struct {
 	Reason  string `json:"reason"`
 }
 
+type FactoryBatchExport struct {
+	Kind        string                `json:"kind"`
+	Version     string                `json:"version"`
+	BatchID     string                `json:"batch_id"`
+	GeneratedAt time.Time             `json:"generated_at"`
+	ExportHash  string                `json:"export_hash"`
+	Summary     FactoryExportSummary  `json:"summary"`
+	Batch       database.FactoryBatch `json:"batch"`
+	Items       []FactoryExportItem   `json:"items"`
+	Logs        []database.LogEntry   `json:"logs"`
+}
+
+type FactoryExportSummary struct {
+	Contracts int `json:"contracts"`
+	Tasks     int `json:"tasks"`
+	Artifacts int `json:"artifacts"`
+	Handoffs  int `json:"handoffs"`
+	Logs      int `json:"logs"`
+}
+
+type FactoryExportItem struct {
+	Item      database.FactoryItem `json:"item"`
+	Contract  database.Contract    `json:"contract"`
+	Tasks     []database.Task      `json:"tasks"`
+	Artifacts []database.Artifact  `json:"artifacts"`
+	Handoffs  []database.Handoff   `json:"handoffs"`
+}
+
 func NewManager(store *database.Store, eng *engine.Engine, knowledgePacks *knowledge.Library, bus *EventBus) *Manager {
 	ctx, cancel := context.WithCancel(context.Background())
 	manager := &Manager{
@@ -510,6 +538,31 @@ func (m *Manager) factorySeriesResultFromBatch(batch database.FactoryBatch) (Fac
 	return result, nil
 }
 
+func factoryExportLogs(logs []database.LogEntry, batchID string, contractIDs map[int64]struct{}) []database.LogEntry {
+	var out []database.LogEntry
+	for _, item := range logs {
+		if strings.Contains(item.Message, batchID) {
+			out = append(out, item)
+			continue
+		}
+		for contractID := range contractIDs {
+			if strings.Contains(item.Message, fmt.Sprintf("contrato %d", contractID)) || strings.Contains(item.Message, fmt.Sprintf("contract=%d", contractID)) {
+				out = append(out, item)
+				break
+			}
+		}
+	}
+	sort.SliceStable(out, func(i, j int) bool { return out[i].ID < out[j].ID })
+	return out
+}
+
+func factoryExportHash(export FactoryBatchExport) string {
+	export.ExportHash = ""
+	raw, _ := json.Marshal(export)
+	sum := sha256.Sum256(raw)
+	return hex.EncodeToString(sum[:])
+}
+
 func renderFactoryTemplate(template, item string, index, total int, batchID string) string {
 	out := strings.TrimSpace(template)
 	replacer := strings.NewReplacer(
@@ -621,6 +674,85 @@ func (m *Manager) FactoryBatchAction(req FactoryBatchActionRequest) (map[string]
 	default:
 		return nil, errors.New("acao de fabrica desconhecida")
 	}
+}
+
+func (m *Manager) ExportFactoryBatch(batchID string) (FactoryBatchExport, error) {
+	batchID = strings.TrimSpace(batchID)
+	if batchID == "" {
+		return FactoryBatchExport{}, errors.New("batch_id ausente")
+	}
+	batch, err := m.store.GetFactoryBatch(batchID)
+	if err != nil {
+		return FactoryBatchExport{}, err
+	}
+	items, err := m.store.ListFactoryItems(batchID)
+	if err != nil {
+		return FactoryBatchExport{}, err
+	}
+	tasks, err := m.store.ListTasks()
+	if err != nil {
+		return FactoryBatchExport{}, err
+	}
+	artifacts, err := m.store.ListArtifacts()
+	if err != nil {
+		return FactoryBatchExport{}, err
+	}
+	handoffs, err := m.store.ListHandoffs(1000)
+	if err != nil {
+		return FactoryBatchExport{}, err
+	}
+	logs, err := m.store.ListLogs(1000)
+	if err != nil {
+		return FactoryBatchExport{}, err
+	}
+
+	tasksByContract := map[int64][]database.Task{}
+	for _, task := range tasks {
+		tasksByContract[task.ContractID] = append(tasksByContract[task.ContractID], task)
+	}
+	artifactsByContract := map[int64][]database.Artifact{}
+	for _, artifact := range artifacts {
+		artifactsByContract[artifact.ContractID] = append(artifactsByContract[artifact.ContractID], artifact)
+	}
+	handoffsByContract := map[int64][]database.Handoff{}
+	for _, handoff := range handoffs {
+		handoffsByContract[handoff.ContractID] = append(handoffsByContract[handoff.ContractID], handoff)
+	}
+
+	export := FactoryBatchExport{
+		Kind:        "factory-batch-export",
+		Version:     "2.0.0",
+		BatchID:     batch.BatchID,
+		GeneratedAt: time.Now().UTC(),
+		Batch:       batch,
+	}
+	contractIDs := map[int64]struct{}{}
+	for _, item := range items {
+		contract, err := m.store.GetContract(item.ContractID)
+		if err != nil {
+			return FactoryBatchExport{}, err
+		}
+		itemTasks := tasksByContract[item.ContractID]
+		itemArtifacts := artifactsByContract[item.ContractID]
+		itemHandoffs := handoffsByContract[item.ContractID]
+		export.Items = append(export.Items, FactoryExportItem{
+			Item:      item,
+			Contract:  contract,
+			Tasks:     itemTasks,
+			Artifacts: itemArtifacts,
+			Handoffs:  itemHandoffs,
+		})
+		contractIDs[item.ContractID] = struct{}{}
+		export.Summary.Contracts++
+		export.Summary.Tasks += len(itemTasks)
+		export.Summary.Artifacts += len(itemArtifacts)
+		export.Summary.Handoffs += len(itemHandoffs)
+	}
+	export.Logs = factoryExportLogs(logs, batchID, contractIDs)
+	export.Summary.Logs = len(export.Logs)
+	export.ExportHash = factoryExportHash(export)
+	m.store.Log("INFO", "factory-series", fmt.Sprintf("lote %s exportado hash=%s", batchID, export.ExportHash))
+	return export, nil
 }
 
 func (m *Manager) cancelFactoryBatch(batchID, reason string) (database.FactoryBatch, int64, error) {
@@ -1157,6 +1289,7 @@ func pluginCommandRegistrations(registry mcp.Registry) []database.PluginCommandR
 			Kind:         command.Kind,
 			Transport:    command.Transport,
 			Target:       command.Target,
+			Status:       command.Status,
 			Enabled:      command.Enabled,
 			ManifestPath: command.ManifestPath,
 			Sandbox:      string(rawSandbox),

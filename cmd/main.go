@@ -182,6 +182,17 @@ func main() {
 		}
 		return result, http.StatusOK, nil
 	}))
+	mux.HandleFunc("/api/factory_batches/export", jsonHandler(func(w http.ResponseWriter, r *http.Request) (any, int, error) {
+		if r.Method != http.MethodGet {
+			return nil, http.StatusMethodNotAllowed, fmt.Errorf("metodo nao permitido")
+		}
+		batchID := strings.TrimSpace(r.URL.Query().Get("batch_id"))
+		result, err := manager.ExportFactoryBatch(batchID)
+		if err != nil {
+			return nil, http.StatusBadRequest, err
+		}
+		return result, http.StatusOK, nil
+	}))
 	mux.HandleFunc("/api/plugins", jsonHandler(func(w http.ResponseWriter, r *http.Request) (any, int, error) {
 		if r.Method != http.MethodGet {
 			return nil, http.StatusMethodNotAllowed, fmt.Errorf("metodo nao permitido")

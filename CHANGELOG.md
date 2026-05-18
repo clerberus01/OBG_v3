@@ -4,6 +4,8 @@
 
 - Removeu dependencias produtivas de GGUF/modelos externos; runtime usa Symbolic Engine deterministico.
 - Adicionou Knowledge Packs iniciais, incluindo `web-services` e `local-tools`.
+- Adicionou Knowledge Packs dedicados para `analysis`, `strategy` e `design`.
+- Adicionou testes especificos de carregamento, persistencia, busca e aplicacao dos packs `analysis`, `strategy` e `design`.
 - Implementou sandbox controlado para plugins em `plugins/sandbox/sandbox.go`.
 - Registrou comandos locais, servicos locais e servicos web no SQLite/dashboard.
 - Adicionou permissoes por contrato e tarefa para chamadas de plugins.
@@ -11,6 +13,7 @@
 - Implementou self-evolving basico com regras candidatas pendentes e aprovacao manual.
 - Adicionou modo Fabrica em Serie com lotes, contratos por item, dependencias seriais e resumo no dashboard.
 - Adicionou crivo tecnico `scripts/audit.ps1` com `gofmt`, `go vet`, testes, varredura local e benchmarks RAM/CPU.
+- Adicionou orcamento formal de benchmarks CPU/RAM com reprovacao automatica no crivo tecnico.
 - Formalizou a decisao de seguranca v2.0 que mantem `git`, `docker` e `podman` mutaveis bloqueados por padrao.
 - Atualizou o crivo para Go 1.26.3+, `govulncheck` e `gosec` com 0 achados no projeto principal.
 - Gerou o pacote final `dist/omni-bot-go-2.0.0.zip` com manifesto, checksums e conteudo runtime limpo.

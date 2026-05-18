@@ -163,6 +163,7 @@ func TestPluginCommandRegistryPersistsLocalAndWebCommands(t *testing.T) {
 			Kind:         "local-command",
 			Transport:    "stdio-json",
 			Target:       "gofmt -w",
+			Status:       "enabled",
 			Enabled:      true,
 			ManifestPath: "plugins/local.json",
 			Sandbox:      `{"max_output_bytes":16000}`,
@@ -173,6 +174,7 @@ func TestPluginCommandRegistryPersistsLocalAndWebCommands(t *testing.T) {
 			Kind:         "web-service",
 			Transport:    "web-service",
 			Target:       "https://example.com/tool",
+			Status:       "blocked",
 			Enabled:      false,
 			ManifestPath: "plugins/web.json",
 			Sandbox:      `{}`,
@@ -192,10 +194,10 @@ func TestPluginCommandRegistryPersistsLocalAndWebCommands(t *testing.T) {
 	for _, item := range items {
 		found[item.PluginID+"/"+item.Tool] = item
 	}
-	if !found["local/format"].Enabled || found["local/format"].Kind != "local-command" || found["local/format"].Target != "gofmt -w" {
+	if !found["local/format"].Enabled || found["local/format"].Kind != "local-command" || found["local/format"].Status != "enabled" || found["local/format"].Target != "gofmt -w" {
 		t.Fatalf("local registry = %#v", found["local/format"])
 	}
-	if found["web/send"].Enabled || found["web/send"].Kind != "web-service" || found["web/send"].Target != "https://example.com/tool" {
+	if found["web/send"].Enabled || found["web/send"].Kind != "web-service" || found["web/send"].Status != "blocked" || found["web/send"].Target != "https://example.com/tool" {
 		t.Fatalf("web registry = %#v", found["web/send"])
 	}
 }

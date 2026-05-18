@@ -178,6 +178,7 @@ type PluginCommandRegistration struct {
 	Kind         string    `json:"kind"`
 	Transport    string    `json:"transport"`
 	Target       string    `json:"target"`
+	Status       string    `json:"status"`
 	Enabled      bool      `json:"enabled"`
 	ManifestPath string    `json:"manifest_path"`
 	Sandbox      string    `json:"sandbox"`
@@ -389,6 +390,7 @@ func (s *Store) Migrate() error {
 			kind TEXT NOT NULL,
 			transport TEXT NOT NULL,
 			target TEXT NOT NULL,
+			status TEXT NOT NULL DEFAULT 'registered',
 			enabled INTEGER NOT NULL,
 			manifest_path TEXT NOT NULL,
 			sandbox TEXT NOT NULL DEFAULT '{}',
@@ -434,12 +436,24 @@ func (s *Store) Migrate() error {
 	if err := s.migratePluginCallsTable(); err != nil {
 		return err
 	}
+	if err := s.migratePluginCommandRegistryTable(); err != nil {
+		return err
+	}
 	for i := 1; i <= 4; i++ {
 		if _, err := s.db.Exec(`INSERT OR IGNORE INTO agentes(worker_id, role, task_id, status) VALUES(?, '', 0, ?)`, i, StatusPending); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+func (s *Store) migratePluginCommandRegistryTable() error {
+	exists, err := s.tableColumnExists("plugin_command_registry", "status")
+	if err != nil || exists {
+		return err
+	}
+	_, err = s.db.Exec(`ALTER TABLE plugin_command_registry ADD COLUMN status TEXT NOT NULL DEFAULT 'registered'`)
+	return err
 }
 
 func (s *Store) migrateLegacyKnowledgeTable() error {
@@ -996,6 +1010,9 @@ func (s *Store) RejectTask(taskID int64, reason string) error {
 		return errors.New("tarefa selada como read-only")
 	}
 	attempts := task.Attempts + 1
+	if attempts > 3 {
+		attempts = 3
+	}
 	status := StatusRedoing
 	if attempts >= 3 {
 		status = StatusBlocked
@@ -1037,7 +1054,7 @@ func (s *Store) CancelTask(taskID int64, reason string) error {
 }
 
 func (s *Store) RetryTask(taskID int64, reason string) error {
-	res, err := s.db.Exec(`UPDATE tarefas SET status = ?, payload = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND read_only = 0 AND status IN (?, ?, ?, ?)`,
+	res, err := s.db.Exec(`UPDATE tarefas SET status = ?, attempts = 0, payload = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND read_only = 0 AND status IN (?, ?, ?, ?)`,
 		StatusPending, fmt.Sprintf(`{"retry_reason":%q}`, reason), taskID, StatusRejected, StatusBlocked, StatusCancelled, StatusRedoing)
 	if err != nil {
 		return err
@@ -1116,17 +1133,25 @@ func (s *Store) UpsertPluginCommandRegistry(records []PluginCommandRegistration)
 		if strings.TrimSpace(record.Sandbox) == "" {
 			record.Sandbox = "{}"
 		}
-		_, err := tx.Exec(`INSERT INTO plugin_command_registry(plugin_id, tool, kind, transport, target, enabled, manifest_path, sandbox, updated_at)
-			VALUES(?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+		if strings.TrimSpace(record.Status) == "" {
+			if record.Enabled {
+				record.Status = "enabled"
+			} else {
+				record.Status = "blocked"
+			}
+		}
+		_, err := tx.Exec(`INSERT INTO plugin_command_registry(plugin_id, tool, kind, transport, target, status, enabled, manifest_path, sandbox, updated_at)
+			VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
 			ON CONFLICT(plugin_id, tool) DO UPDATE SET
 				kind = excluded.kind,
 				transport = excluded.transport,
 				target = excluded.target,
+				status = excluded.status,
 				enabled = excluded.enabled,
 				manifest_path = excluded.manifest_path,
 				sandbox = excluded.sandbox,
 				updated_at = CURRENT_TIMESTAMP`,
-			record.PluginID, record.Tool, record.Kind, record.Transport, record.Target, enabled, record.ManifestPath, record.Sandbox)
+			record.PluginID, record.Tool, record.Kind, record.Transport, record.Target, record.Status, enabled, record.ManifestPath, record.Sandbox)
 		if err != nil {
 			return err
 		}
@@ -1138,7 +1163,7 @@ func (s *Store) ListPluginCommandRegistry(limit int) ([]PluginCommandRegistratio
 	if limit <= 0 {
 		limit = 100
 	}
-	rows, err := s.db.Query(`SELECT id, plugin_id, tool, kind, transport, target, enabled, manifest_path, sandbox, updated_at FROM plugin_command_registry ORDER BY updated_at DESC, plugin_id, tool LIMIT ?`, limit)
+	rows, err := s.db.Query(`SELECT id, plugin_id, tool, kind, transport, target, status, enabled, manifest_path, sandbox, updated_at FROM plugin_command_registry ORDER BY updated_at DESC, plugin_id, tool LIMIT ?`, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -1147,7 +1172,7 @@ func (s *Store) ListPluginCommandRegistry(limit int) ([]PluginCommandRegistratio
 	for rows.Next() {
 		var item PluginCommandRegistration
 		var enabled int
-		if err := rows.Scan(&item.ID, &item.PluginID, &item.Tool, &item.Kind, &item.Transport, &item.Target, &enabled, &item.ManifestPath, &item.Sandbox, &item.UpdatedAt); err != nil {
+		if err := rows.Scan(&item.ID, &item.PluginID, &item.Tool, &item.Kind, &item.Transport, &item.Target, &item.Status, &enabled, &item.ManifestPath, &item.Sandbox, &item.UpdatedAt); err != nil {
 			return nil, err
 		}
 		item.Enabled = enabled == 1

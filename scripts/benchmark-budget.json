@@ -1,0 +1,48 @@
+{
+  "version": "2.0.0",
+  "description": "Orcamento formal de CPU/RAM para o crivo tecnico da release interna.",
+  "benchmarks": [
+    {
+      "package": "omni-bot-go/engine/symbolic",
+      "name": "BenchmarkPlanHierarchical",
+      "max_ns_per_op": 500000,
+      "max_bytes_per_op": 300000,
+      "max_allocs_per_op": 2500
+    },
+    {
+      "package": "omni-bot-go/engine/symbolic",
+      "name": "BenchmarkExecuteTask",
+      "max_ns_per_op": 120000,
+      "max_bytes_per_op": 80000,
+      "max_allocs_per_op": 600
+    },
+    {
+      "package": "omni-bot-go/knowledge",
+      "name": "BenchmarkLoadPackFromFile",
+      "max_ns_per_op": 3000000,
+      "max_bytes_per_op": 10000,
+      "max_allocs_per_op": 80
+    },
+    {
+      "package": "omni-bot-go/knowledge",
+      "name": "BenchmarkSearchWithOptions",
+      "max_ns_per_op": 250000,
+      "max_bytes_per_op": 60000,
+      "max_allocs_per_op": 1000
+    },
+    {
+      "package": "omni-bot-go/plugins/sandbox",
+      "name": "BenchmarkCommandAllowedControlledGit",
+      "max_ns_per_op": 10000,
+      "max_bytes_per_op": 5000,
+      "max_allocs_per_op": 30
+    },
+    {
+      "package": "omni-bot-go/plugins/sandbox",
+      "name": "BenchmarkPrepareScopedRequest",
+      "max_ns_per_op": 500000,
+      "max_bytes_per_op": 150000,
+      "max_allocs_per_op": 1200
+    }
+  ]
+}

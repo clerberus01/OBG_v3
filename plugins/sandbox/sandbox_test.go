@@ -10,8 +10,24 @@ import (
 )
 
 func TestBlocksDangerousCommandsEvenWhenAllowlisted(t *testing.T) {
-	if CommandAllowed("rm", []string{"-rf", "."}, Policy{AllowCommands: []string{"rm"}}, ".") {
-		t.Fatal("expected dangerous command to be blocked")
+	cases := []struct {
+		command string
+		args    []string
+	}{
+		{command: "rm", args: []string{"-rf", "."}},
+		{command: "del", args: []string{"/f", "file.txt"}},
+		{command: "format", args: []string{"C:"}},
+		{command: "shutdown", args: []string{"/s"}},
+		{command: "cmd", args: []string{"/c", "echo ok"}},
+		{command: "bash", args: []string{"-lc", "echo ok"}},
+		{command: "taskkill", args: []string{"/PID", "1"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.command, func(t *testing.T) {
+			if CommandAllowed(tc.command, tc.args, Policy{AllowCommands: []string{tc.command}}, ".") {
+				t.Fatalf("expected dangerous command to be blocked: %s", tc.command)
+			}
+		})
 	}
 }
 
@@ -42,6 +58,9 @@ func TestAllowsOnlyApprovedLocalScripts(t *testing.T) {
 	if CommandAllowed("powershell", []string{"-NoProfile", "-Command", "scripts/test.ps1"}, policy, root) {
 		t.Fatal("expected powershell -Command to be blocked")
 	}
+	if CommandAllowed("powershell", []string{"-NoProfile", "-File", "scripts/test.ps1", "-EncodedCommand", "AAAA"}, policy, root) {
+		t.Fatal("expected powershell -EncodedCommand to be blocked even after -File")
+	}
 	if CommandAllowed("powershell", []string{"-NoProfile", "-File", "scripts/other.ps1"}, policy, root) {
 		t.Fatal("expected unapproved local script to be blocked")
 	}
@@ -54,6 +73,9 @@ func TestControlledGitSupport(t *testing.T) {
 	}
 	if !CommandAllowed("git", []string{"remote", "-v"}, policy, ".") {
 		t.Fatal("expected git remote -v to be allowed when explicitly registered")
+	}
+	if CommandAllowed("git", []string{"remote", "-v", "origin"}, policy, ".") {
+		t.Fatal("expected git remote -v with extra args to be blocked")
 	}
 	if CommandAllowed("git", []string{"checkout", "main"}, Policy{AllowCommands: []string{"git checkout"}}, ".") {
 		t.Fatal("expected mutating git checkout to be blocked")
@@ -139,6 +161,18 @@ func TestControlledCurlSupport(t *testing.T) {
 	}
 	if CommandAllowed("curl", []string{"-o", "file.txt", "https://example.com/health"}, Policy{AllowCommands: []string{"curl -o file.txt https://example.com/health"}}, ".") {
 		t.Fatal("expected curl output write to be blocked")
+	}
+	if CommandAllowed("curl", []string{"--output=file.txt", "https://example.com/health"}, Policy{AllowCommands: []string{"curl --output=file.txt https://example.com/health"}}, ".") {
+		t.Fatal("expected curl --output=file to be blocked")
+	}
+	if CommandAllowed("curl", []string{"--data=payload", "https://example.com/health"}, Policy{AllowCommands: []string{"curl --data=payload https://example.com/health"}}, ".") {
+		t.Fatal("expected curl --data=payload to be blocked")
+	}
+	if CommandAllowed("curl", []string{"-H", "Authorization: token", "https://example.com/health"}, Policy{AllowCommands: []string{"curl -H Authorization: token https://example.com/health"}}, ".") {
+		t.Fatal("expected curl custom header to be blocked")
+	}
+	if CommandAllowed("curl", []string{"--request=POST", "https://example.com/health"}, Policy{AllowCommands: []string{"curl --request=POST https://example.com/health"}}, ".") {
+		t.Fatal("expected curl --request=POST to be blocked")
 	}
 }
 
@@ -230,6 +264,9 @@ func TestServiceEndpointValidation(t *testing.T) {
 	}
 	if err := ValidateServiceEndpoint("web-service", "https://example.com/tool"); err != nil {
 		t.Fatal(err)
+	}
+	if err := ValidateServiceEndpoint("web-service", "https://127.0.0.1/tool"); err == nil || !strings.Contains(err.Error(), "localhost") {
+		t.Fatalf("expected web-service loopback error, got %v", err)
 	}
 	if err := ValidateServiceEndpoint("web-service", "http://example.com/tool"); err == nil || !strings.Contains(err.Error(), "https") {
 		t.Fatalf("expected https error, got %v", err)

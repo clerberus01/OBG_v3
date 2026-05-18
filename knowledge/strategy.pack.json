@@ -1,0 +1,26 @@
+{
+  "domain": "strategy",
+  "version": "2.0",
+  "rules": [
+    {
+      "pattern": "estrategia",
+      "action": "north_star_alignment",
+      "template": "Amarrar decisao a objetivo norte, restricoes, metrica de sucesso e prazo de revisao."
+    },
+    {
+      "pattern": "prioridade",
+      "action": "prioritize_by_impact",
+      "template": "Ordenar iniciativas por impacto, urgencia, dependencia, custo e risco operacional."
+    },
+    {
+      "pattern": "roadmap",
+      "action": "phase_roadmap",
+      "template": "Quebrar roadmap em fases verificaveis com entregavel, criterio de pronto e bloqueadores."
+    },
+    {
+      "pattern": "decisao",
+      "action": "decision_record",
+      "template": "Registrar contexto, opcoes consideradas, decisao, consequencias e data de reavaliacao."
+    }
+  ]
+}

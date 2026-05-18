@@ -1,0 +1,26 @@
+{
+  "domain": "analysis",
+  "version": "2.0",
+  "rules": [
+    {
+      "pattern": "analise",
+      "action": "define_hypothesis",
+      "template": "Declarar pergunta, hipotese, fontes, criterio de confianca e limite da analise antes de concluir."
+    },
+    {
+      "pattern": "dados",
+      "action": "validate_dataset",
+      "template": "Conferir origem, periodo, completude, duplicidade e lacunas dos dados antes de calcular conclusoes."
+    },
+    {
+      "pattern": "comparacao",
+      "action": "compare_options",
+      "template": "Comparar alternativas com criterios fixos, tradeoffs explicitos e recomendacao justificada."
+    },
+    {
+      "pattern": "risco",
+      "action": "risk_matrix",
+      "template": "Classificar risco por impacto, probabilidade, mitigacao, dono e gatilho de revisao."
+    }
+  ]
+}

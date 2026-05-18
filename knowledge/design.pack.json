@@ -1,0 +1,26 @@
+{
+  "domain": "design",
+  "version": "2.0",
+  "rules": [
+    {
+      "pattern": "design",
+      "action": "user_flow_first",
+      "template": "Definir fluxo principal, estado vazio, erro, carregamento e sucesso antes de ajustar visual."
+    },
+    {
+      "pattern": "dashboard",
+      "action": "scan_dense_layout",
+      "template": "Organizar informacao para leitura rapida, sem sobreposicao, com hierarquia visual e responsividade."
+    },
+    {
+      "pattern": "interface",
+      "action": "control_semantics",
+      "template": "Usar controles semanticamente corretos: botoes para acoes, filtros para visao e badges para estado."
+    },
+    {
+      "pattern": "responsivo",
+      "action": "responsive_guard",
+      "template": "Validar que texto, cards, tabelas e controles nao estouram ou sobrepoem em mobile e desktop."
+    }
+  ]
+}

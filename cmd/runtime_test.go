@@ -337,6 +337,62 @@ func TestFactoryBatchOperationalActions(t *testing.T) {
 	}
 }
 
+func TestFactoryBatchExportIncludesProductionEvidence(t *testing.T) {
+	store, err := database.Open(filepath.Join(t.TempDir(), "loja.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	eng, err := engine.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	manager := NewManager(store, eng, knowledge.New(store), NewEventBus())
+	result, err := manager.CreateFactorySeries(FactorySeriesRequest{
+		Template: "Gerar pacote operacional para {{item}}",
+		Items:    []string{"Portal", "API"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	tasks, err := store.ListTasks()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var firstTask database.Task
+	for _, task := range tasks {
+		if task.ContractID == result.Contracts[0].ID {
+			firstTask = task
+			break
+		}
+	}
+	if firstTask.ID == 0 {
+		t.Fatal("factory task not found")
+	}
+	if err := store.AddArtifact(result.Contracts[0].ID, firstTask.ID, "projects/contract-1/export.json", strings.Repeat("a", 64)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.AddHandoff(result.Contracts[0].ID, firstTask.ID, 0, "factory-export", map[string]any{"batch_id": result.BatchID}); err != nil {
+		t.Fatal(err)
+	}
+	export, err := manager.ExportFactoryBatch(result.BatchID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if export.Kind != "factory-batch-export" || export.Version != "2.0.0" || export.BatchID != result.BatchID {
+		t.Fatalf("export header = %#v", export)
+	}
+	if export.Summary.Contracts != 2 || export.Summary.Tasks == 0 || export.Summary.Artifacts != 1 || export.Summary.Handoffs != 1 {
+		t.Fatalf("export summary = %#v", export.Summary)
+	}
+	if len(export.Items) != 2 || export.Items[0].Contract.Hash == "" || len(export.Items[0].Tasks) == 0 {
+		t.Fatalf("export items = %#v", export.Items)
+	}
+	if export.ExportHash == "" || export.ExportHash != factoryExportHash(export) {
+		t.Fatalf("export hash = %q", export.ExportHash)
+	}
+}
+
 func TestFactorySeriesIdempotencyAndResumeState(t *testing.T) {
 	store, err := database.Open(filepath.Join(t.TempDir(), "loja.db"))
 	if err != nil {
@@ -481,6 +537,56 @@ func TestWatchdogFailurePublishesEventAndBlocksAfterThreeAttempts(t *testing.T) 
 	}
 }
 
+func TestRetryTaskResetsWatchdogAttempts(t *testing.T) {
+	store, err := database.Open(filepath.Join(t.TempDir(), "loja.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	eng, err := engine.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	manager := NewManager(store, eng, knowledge.New(store), NewEventBus())
+	contract, err := store.CreateContract("north", "constraints", "deliverables")
+	if err != nil {
+		t.Fatal(err)
+	}
+	task, err := store.AddTask(contract.ID, "falhar e refazer", "Desenvolvedor", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := 1; i <= 3; i++ {
+		manager.watchdogFailure(task, "erro controlado")
+	}
+	blocked, err := store.GetTask(task.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if blocked.Status != database.StatusBlocked || blocked.Attempts != 3 {
+		t.Fatalf("blocked task = %#v", blocked)
+	}
+	if err := manager.RetryTask(task.ID, "refacao manual solicitada"); err != nil {
+		t.Fatal(err)
+	}
+	retried, err := store.GetTask(task.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if retried.Status != database.StatusPending || retried.Attempts != 0 {
+		t.Fatalf("retried task = %#v", retried)
+	}
+	manager.watchdogFailure(retried, "erro apos refacao")
+	failedAgain, err := store.GetTask(task.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	watchdog := failedAgain.Payload["watchdog"].(map[string]any)
+	if failedAgain.Attempts != 1 || int(watchdog["attempt"].(float64)) != 1 || failedAgain.Status == database.StatusBlocked {
+		t.Fatalf("failed again task = %#v payload=%#v", failedAgain, watchdog)
+	}
+}
+
 func TestPluginCallCannotUseReadOnlyTaskScope(t *testing.T) {
 	store, err := database.Open(filepath.Join(t.TempDir(), "loja.db"))
 	if err != nil {
@@ -512,6 +618,94 @@ func TestPluginCallCannotUseReadOnlyTaskScope(t *testing.T) {
 	}
 }
 
+func TestPluginCallHistoryAuditsSuccessAndFailure(t *testing.T) {
+	root := t.TempDir()
+	t.Chdir(root)
+	if err := os.MkdirAll("plugins", 0755); err != nil {
+		t.Fatal(err)
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/fail" {
+			http.Error(w, strings.Repeat("x", 80), http.StatusBadGateway)
+			return
+		}
+		if r.Header.Get("X-OBG-Contract-ID") == "" || r.Header.Get("X-OBG-Task-ID") == "" {
+			t.Fatalf("missing scope headers: %#v", r.Header)
+		}
+		_, _ = w.Write([]byte(`{"ok":true}`))
+	}))
+	defer server.Close()
+	writeRuntimePluginManifest(t, "plugins/svc.json", map[string]any{
+		"id":        "svc",
+		"name":      "Service",
+		"transport": "local-service",
+		"endpoint":  server.URL,
+		"enabled":   true,
+		"sandbox":   map[string]any{"max_output_bytes": 24},
+		"tools":     []map[string]string{{"name": "echo", "description": "echo"}},
+	})
+	writeRuntimePluginManifest(t, "plugins/badsvc.json", map[string]any{
+		"id":        "badsvc",
+		"name":      "Bad Service",
+		"transport": "local-service",
+		"endpoint":  server.URL + "/fail",
+		"enabled":   true,
+		"sandbox":   map[string]any{"max_output_bytes": 24},
+		"tools":     []map[string]string{{"name": "echo", "description": "echo"}},
+	})
+	store, err := database.Open(filepath.Join(root, "loja.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	eng, err := engine.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	manager := NewManager(store, eng, knowledge.New(store), NewEventBus())
+	manager.pluginsDir = "plugins"
+	contract, err := store.CreateContract("north", "constraints", "deliverables")
+	if err != nil {
+		t.Fatal(err)
+	}
+	task, err := store.AddTask(contract.ID, "usar servico local", "Desenvolvedor", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.CallPlugin(mcp.CallRequest{PluginID: "svc", Tool: "echo", TaskID: task.ID, Input: map[string]any{"value": "ok"}}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.CallPlugin(mcp.CallRequest{PluginID: "badsvc", Tool: "echo", TaskID: task.ID, Input: map[string]any{"value": "fail"}}); err == nil {
+		t.Fatal("expected failing plugin call")
+	}
+	calls, err := store.ListPluginCalls(10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(calls) != 2 {
+		t.Fatalf("calls = %#v", calls)
+	}
+	var okCall, failedCall database.PluginCall
+	for _, call := range calls {
+		if call.OK {
+			okCall = call
+		} else {
+			failedCall = call
+		}
+	}
+	if okCall.PluginID != "svc" || okCall.Transport != "local-service" || !okCall.Sandboxed || okCall.ContractID != contract.ID || okCall.TaskID != task.ID || okCall.Duration == "" {
+		t.Fatalf("ok call metadata = %#v", okCall)
+	}
+	if failedCall.PluginID != "badsvc" || failedCall.Error == "" || !strings.Contains(failedCall.Output, "saida truncada") {
+		t.Fatalf("failed call metadata = %#v", failedCall)
+	}
+	snapshot := manager.Snapshot()
+	snapshotCalls, ok := snapshot["plugin_calls"].([]database.PluginCall)
+	if !ok || len(snapshotCalls) < 2 {
+		t.Fatalf("snapshot plugin_calls = %#v", snapshot["plugin_calls"])
+	}
+}
+
 func TestCombinePluginPermissionsIsRestrictive(t *testing.T) {
 	combined := combinePluginPermissions(mcp.SandboxPolicy{
 		WorkDir:        "contract",
@@ -535,6 +729,71 @@ func TestCombinePluginPermissionsIsRestrictive(t *testing.T) {
 	}
 	if combined.MaxOutputBytes != 500 {
 		t.Fatalf("max output = %d", combined.MaxOutputBytes)
+	}
+}
+
+func TestStoredPluginPermissionPrecedenceTaskContractInline(t *testing.T) {
+	store, err := database.Open(filepath.Join(t.TempDir(), "loja.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	eng, err := engine.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	manager := NewManager(store, eng, knowledge.New(store), NewEventBus())
+	contract, err := store.CreateContract("north", "constraints", "deliverables")
+	if err != nil {
+		t.Fatal(err)
+	}
+	task, err := store.AddTask(contract.ID, "executar ferramenta controlada", "Desenvolvedor", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.UpsertPluginPermissionScope(database.PluginPermissionScope{
+		Scope:       "contract",
+		ContractID:  contract.ID,
+		PluginID:    "fixture",
+		Tool:        "*",
+		Permissions: `{"allow_commands":["go test"],"allow_env":["A"],"max_output_bytes":2048}`,
+		Enabled:     true,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.UpsertPluginPermissionScope(database.PluginPermissionScope{
+		Scope:       "task",
+		ContractID:  contract.ID,
+		TaskID:      task.ID,
+		PluginID:    "fixture",
+		Tool:        "echo",
+		Permissions: `{"allow_commands":["gofmt"],"allow_env":["B"],"max_output_bytes":512}`,
+		Enabled:     true,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	req, err := manager.applyStoredPluginPermissions(mcp.CallRequest{
+		PluginID:   "fixture",
+		Tool:       "echo",
+		ContractID: contract.ID,
+		TaskID:     task.ID,
+		Permissions: mcp.SandboxPolicy{
+			AllowCommands:  []string{"go build", "gofmt"},
+			AllowEnv:       []string{"B", "C"},
+			MaxOutputBytes: 1024,
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(req.Permissions.AllowCommands) != 1 || req.Permissions.AllowCommands[0] != "gofmt" {
+		t.Fatalf("commands should come from task scope plus inline restriction: %#v", req.Permissions.AllowCommands)
+	}
+	if len(req.Permissions.AllowEnv) != 1 || req.Permissions.AllowEnv[0] != "B" {
+		t.Fatalf("env should come from task scope plus inline restriction: %#v", req.Permissions.AllowEnv)
+	}
+	if req.Permissions.MaxOutputBytes != 512 {
+		t.Fatalf("max output should use stricter task limit: %d", req.Permissions.MaxOutputBytes)
 	}
 }
 
@@ -803,6 +1062,19 @@ func TestAPIFactorySeriesAndKnowledgeCandidateActions(t *testing.T) {
 	if batch.Status != "paused" {
 		t.Fatalf("batch after api action = %#v", batch)
 	}
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/api/factory_batches/export?batch_id="+factory.BatchID, nil)
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("factory export status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	var export FactoryBatchExport
+	if err := json.Unmarshal(rec.Body.Bytes(), &export); err != nil {
+		t.Fatal(err)
+	}
+	if export.BatchID != factory.BatchID || export.ExportHash == "" || export.Summary.Contracts != 2 {
+		t.Fatalf("factory export = %#v", export)
+	}
 
 	task, err := store.AddTaskWithPayload(factory.Contracts[0].ID, "Implementar codigo auditavel", "Desenvolvedor", nil, map[string]any{"domain": "code", "key": "code-implement"})
 	if err != nil {
@@ -975,6 +1247,17 @@ func TestDomainArtifactValidationMatrix(t *testing.T) {
 	}
 }
 
+func writeRuntimePluginManifest(t *testing.T, path string, manifest map[string]any) {
+	t.Helper()
+	raw, err := json.Marshal(manifest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, raw, 0644); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func runtimeTestMux(manager *Manager, eng *engine.Engine, dbPath, pluginsDir, logPath string) *http.ServeMux {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/health", jsonHandler(func(w http.ResponseWriter, r *http.Request) (any, int, error) {
@@ -1004,6 +1287,13 @@ func runtimeTestMux(manager *Manager, eng *engine.Engine, dbPath, pluginsDir, lo
 			return nil, http.StatusBadRequest, err
 		}
 		result, err := manager.FactoryBatchAction(body)
+		if err != nil {
+			return nil, http.StatusBadRequest, err
+		}
+		return result, http.StatusOK, nil
+	}))
+	mux.HandleFunc("/api/factory_batches/export", jsonHandler(func(w http.ResponseWriter, r *http.Request) (any, int, error) {
+		result, err := manager.ExportFactoryBatch(strings.TrimSpace(r.URL.Query().Get("batch_id")))
 		if err != nil {
 			return nil, http.StatusBadRequest, err
 		}
